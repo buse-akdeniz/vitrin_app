@@ -41,3 +41,31 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# =========================
+# Security / private files
+# =========================
+# Environment files
+.env
+.env.*
+
+# API keys / service accounts / credentials
+*credentials*.json
+*secret*.json
+service-account*.json
+
+# Android signing / local secrets
+**/*.jks
+**/*.keystore
+android/key.properties
+android/keystore.properties
+
+# iOS/macOS signing artifacts
+**/*.p12
+**/*.pem
+**/*.key
+**/*.cer
+**/*.mobileprovision
+
+# Optional local config folder for private docs/files
+private/
