@@ -302,4 +302,38 @@ class ApiService {
     );
     return jsonDecode(response.body);
   }
+
+  // ─── Takip (Satıcı) ──────────────────────────────────────────────────────
+
+  static Future<Map<String, dynamic>> getFollowedSellers() async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/follows'),
+      headers: await _authHeaders(),
+    );
+    return jsonDecode(response.body);
+  }
+
+  static Future<Map<String, dynamic>> followSeller(int sellerId) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/follows/$sellerId'),
+      headers: await _authHeaders(),
+    );
+    return jsonDecode(response.body);
+  }
+
+  static Future<Map<String, dynamic>> unfollowSeller(int sellerId) async {
+    final response = await http.delete(
+      Uri.parse('$baseUrl/follows/$sellerId'),
+      headers: await _authHeaders(),
+    );
+    return jsonDecode(response.body);
+  }
+
+  static Future<Map<String, dynamic>> getRecommendedProducts() async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/products/recommended'),
+      headers: await _authHeaders(),
+    );
+    return jsonDecode(response.body);
+  }
 }

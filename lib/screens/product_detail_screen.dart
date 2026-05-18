@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import 'comments_screen.dart';
+import '../widgets/product_image.dart';
 
 class ProductDetailScreen extends StatefulWidget {
   final Map<String, dynamic> product;
@@ -18,6 +19,7 @@ class ProductDetailScreen extends StatefulWidget {
 
 class _ProductDetailScreenState extends State<ProductDetailScreen> {
   bool _isFavorite = false;
+  bool _isFollowingSeller = false;
   Map<String, dynamic>? _insights;
   bool _loadingInsights = true;
 
@@ -26,6 +28,36 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     super.initState();
     _isFavorite = widget.initiallyFavorite;
     _loadInsights();
+    _loadFollowStatus();
+  }
+
+  Future<void> _loadFollowStatus() async {
+    final sellerId = (widget.product['seller_id'] ?? widget.product['user_id'] ?? 0) as int;
+    if (sellerId <= 0) return;
+    try {
+      final result = await ApiService.getFollowedSellers();
+      final sellers = (result['sellers'] as List?) ?? [];
+      final followed = sellers.any((s) => (s as Map<String, dynamic>)['seller_id'] == sellerId);
+      if (!mounted) return;
+      setState(() => _isFollowingSeller = followed);
+    } catch (_) {
+      // sessiz
+    }
+  }
+
+  Future<void> _toggleFollowSeller() async {
+    final sellerId = (widget.product['seller_id'] ?? widget.product['user_id'] ?? 0) as int;
+    if (sellerId <= 0) return;
+    final result = _isFollowingSeller
+        ? await ApiService.unfollowSeller(sellerId)
+        : await ApiService.followSeller(sellerId);
+    if (!mounted) return;
+    if (result['success'] == true) {
+      setState(() => _isFollowingSeller = !_isFollowingSeller);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text((result['message'] ?? 'İşlem tamamlandı').toString())),
+      );
+    }
   }
 
   Future<void> _loadInsights() async {
@@ -125,19 +157,22 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
           'Ürün Detayı',
           style: TextStyle(color: Color(0xFF2D2D2D), fontWeight: FontWeight.bold),
         ),
+        actions: [
+          TextButton.icon(
+            onPressed: _toggleFollowSeller,
+            icon: Icon(_isFollowingSeller ? Icons.person_remove_alt_1 : Icons.person_add_alt_1),
+            label: Text(_isFollowingSeller ? 'Takiptesin' : 'Takip Et'),
+          )
+        ],
       ),
       body: ListView(
         padding: const EdgeInsets.all(14),
         children: [
-          Container(
+          ProductImage(
+            imageUrl: (p['image_url'] ?? '').toString(),
+            width: double.infinity,
             height: 240,
-            decoration: BoxDecoration(
-              color: const Color(0xFFF0F0F0),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: const Center(
-              child: Icon(Icons.image, size: 56, color: Color(0xFFBDBDBD)),
-            ),
+            borderRadius: BorderRadius.circular(16),
           ),
           const SizedBox(height: 12),
           Text(

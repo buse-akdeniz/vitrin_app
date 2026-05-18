@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import 'product_detail_screen.dart';
+import '../widgets/product_image.dart';
 
 class FavoritesScreen extends StatefulWidget {
   const FavoritesScreen({super.key});
@@ -72,6 +73,12 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                           initiallyFavorite: true,
                         ),
                       ),
+                    ),
+                    leading: ProductImage(
+                      imageUrl: (p['image_url'] ?? '').toString(),
+                      width: 48,
+                      height: 48,
+                      borderRadius: BorderRadius.circular(8),
                     ),
                     title: Text((p['title'] ?? '').toString()),
                     subtitle: Text('₺${p['price']}'),

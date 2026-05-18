@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'dart:io';
+import 'package:image_picker/image_picker.dart';
 import '../services/api_service.dart';
 
 class AddProductScreen extends StatefulWidget {
@@ -21,6 +23,8 @@ class _AddProductScreenState extends State<AddProductScreen> {
   final _imageUrlController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _sosDiscountController = TextEditingController();
+  final ImagePicker _picker = ImagePicker();
+  XFile? _pickedImage;
 
   String _gender = 'Unisex';
   String _condition = 'Yeni Gibi';
@@ -28,6 +32,12 @@ class _AddProductScreenState extends State<AddProductScreen> {
   String _packageSize = 'medium';
   bool _isSos = false;
   bool _isSaving = false;
+
+  Future<void> _pickImage() async {
+    final file = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
+    if (!mounted || file == null) return;
+    setState(() => _pickedImage = file);
+  }
   bool _isLoadingInsights = false;
   Map<String, dynamic>? _priceInsights;
 
@@ -66,7 +76,9 @@ class _AddProductScreenState extends State<AddProductScreen> {
         shippingType: _shippingType,
         packageSize: _packageSize,
         color: _colorController.text.trim(),
-        imageUrl: _imageUrlController.text.trim(),
+        imageUrl: _imageUrlController.text.trim().isNotEmpty
+          ? _imageUrlController.text.trim()
+          : (_pickedImage?.path ?? ''),
         description: _descriptionController.text.trim(),
         isSos: _isSos,
         sosDiscountPercent: sosDiscount,
@@ -320,6 +332,30 @@ class _AddProductScreenState extends State<AddProductScreen> {
               TextFormField(
                   controller: _imageUrlController,
                   decoration: _input('Resim URL')),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _pickImage,
+                      icon: const Icon(Icons.photo_library_outlined),
+                      label: const Text('Galeriden Seç'),
+                    ),
+                  ),
+                ],
+              ),
+              if (_pickedImage != null) ...[
+                const SizedBox(height: 8),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.file(
+                    File(_pickedImage!.path),
+                    height: 160,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                  ),
+                ),
+              ],
               const SizedBox(height: 12),
               TextFormField(
                 controller: _descriptionController,

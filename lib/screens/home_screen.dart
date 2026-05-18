@@ -5,6 +5,7 @@ import 'profile_screen.dart';
 import 'products_screen.dart';
 import 'support_chat_screen.dart';
 import 'product_detail_screen.dart';
+import '../widgets/product_image.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -15,12 +16,14 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   List<dynamic> _sosProducts = [];
+  List<dynamic> _followedSellers = [];
+  List<dynamic> _recommendedProducts = [];
   final TextEditingController _searchController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    _loadSosProducts();
+    _loadHomeData();
   }
 
   @override
@@ -29,8 +32,15 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
+  Future<void> _loadHomeData() async {
+    await Future.wait([
+      _loadSosProducts(),
+      _loadFollowedSellers(),
+      _loadRecommendedProducts(),
+    ]);
+  }
+
   Future<void> _loadSosProducts() async {
-    
     try {
       final result = await ApiService.getProducts(filters: {'sosOnly': '1'});
       if (!mounted) return;
@@ -39,8 +49,30 @@ class _HomeScreenState extends State<HomeScreen> {
       });
     } catch (_) {
       // Hata sessiz geç
-    } finally {
-      
+    }
+  }
+
+  Future<void> _loadFollowedSellers() async {
+    try {
+      final result = await ApiService.getFollowedSellers();
+      if (!mounted) return;
+      setState(() {
+        _followedSellers = (result['sellers'] as List?) ?? [];
+      });
+    } catch (_) {
+      // sessiz
+    }
+  }
+
+  Future<void> _loadRecommendedProducts() async {
+    try {
+      final result = await ApiService.getRecommendedProducts();
+      if (!mounted) return;
+      setState(() {
+        _recommendedProducts = (result['products'] as List?) ?? [];
+      });
+    } catch (_) {
+      // sessiz
     }
   }
 
@@ -239,9 +271,13 @@ class _HomeScreenState extends State<HomeScreen> {
                                         borderRadius: BorderRadius.vertical(
                                             top: Radius.circular(12)),
                                       ),
-                                      child: const Center(
-                                        child: Icon(Icons.image,
-                                            size: 40, color: Color(0xFFCCCCCC)),
+                                      child: ProductImage(
+                                        imageUrl: (p['image_url'] ?? '').toString(),
+                                        width: 160,
+                                        height: 120,
+                                        borderRadius: const BorderRadius.vertical(
+                                          top: Radius.circular(12),
+                                        ),
                                       ),
                                     ),
                                     Positioned(
@@ -313,6 +349,131 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                         }).toList(),
                       ),
+                    ),
+                  ],
+                ),
+              ),
+            if (_followedSellers.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Takip Ettiklerin',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF2D2D2D),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      height: 40,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: _followedSellers.length,
+                        separatorBuilder: (_, __) => const SizedBox(width: 8),
+                        itemBuilder: (_, i) {
+                          final s = _followedSellers[i] as Map<String, dynamic>;
+                          final sellerName = (s['seller_name'] ?? 'Satıcı').toString();
+                          return ActionChip(
+                            label: Text(sellerName),
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => ProductsScreen(initialQuery: sellerName),
+                                ),
+                              );
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            if (_recommendedProducts.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Senin İçin Öneriler',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF2D2D2D),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    ListView.separated(
+                      physics: const NeverScrollableScrollPhysics(),
+                      shrinkWrap: true,
+                      itemCount: _recommendedProducts.take(6).length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 10),
+                      itemBuilder: (_, i) {
+                        final p = _recommendedProducts[i] as Map<String, dynamic>;
+                        return InkWell(
+                          borderRadius: BorderRadius.circular(12),
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => ProductDetailScreen(
+                                product: Map<String, dynamic>.from(p),
+                              ),
+                            ),
+                          ),
+                          child: Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: const Color(0xFFE8E8E8)),
+                            ),
+                            child: Row(
+                              children: [
+                                ProductImage(
+                                  imageUrl: (p['image_url'] ?? '').toString(),
+                                  width: 58,
+                                  height: 58,
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        (p['title'] ?? '').toString(),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(fontWeight: FontWeight.w600),
+                                      ),
+                                      Text(
+                                        (p['seller_name'] ?? '').toString(),
+                                        style: const TextStyle(
+                                          color: Color(0xFF888888),
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Text(
+                                  '₺${p['price']}',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF2D2D2D),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
                     ),
                   ],
                 ),

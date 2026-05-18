@@ -5,6 +5,7 @@ import 'comments_screen.dart';
 import 'favorites_screen.dart';
 import 'offers_screen.dart';
 import 'product_detail_screen.dart';
+import '../widgets/product_image.dart';
 
 class ProductsScreen extends StatefulWidget {
   final String? initialQuery;
@@ -507,7 +508,12 @@ class _ProductsScreenState extends State<ProductsScreen> {
                                       color: const Color(0xFFF1F1F1),
                                       borderRadius: BorderRadius.circular(12),
                                     ),
-                                    child: const Icon(Icons.image, color: Color(0xFF2D2D2D)),
+                                    child: ProductImage(
+                                      imageUrl: (item['image_url'] ?? '').toString(),
+                                      width: 62,
+                                      height: 62,
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
                                   ),
                                   const SizedBox(width: 10),
                                   Expanded(
