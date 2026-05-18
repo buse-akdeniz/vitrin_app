@@ -30,9 +30,10 @@ class _LoginScreenState extends State<LoginScreen> {
       if (!mounted) return;
 
       if (result['success'] == true) {
-        Navigator.pushReplacement(
+        Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(builder: (_) => const HomeScreen()),
+          (_) => false,
         );
       } else {
         _showError(result['message'] ?? 'Bir hata oluştu.');
