@@ -4,6 +4,7 @@ import 'login_screen.dart';
 import 'profile_screen.dart';
 import 'products_screen.dart';
 import 'support_chat_screen.dart';
+import 'product_detail_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -207,7 +208,17 @@ class _HomeScreenState extends State<HomeScreen> {
                           final originalPrice = p['price'] ?? 0;
                           final discountedPrice = originalPrice * (1 - discountPercent / 100);
                           
-                          return Container(
+                          return InkWell(
+                            borderRadius: BorderRadius.circular(12),
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => ProductDetailScreen(
+                                  product: Map<String, dynamic>.from(p),
+                                ),
+                              ),
+                            ),
+                            child: Container(
                             margin: const EdgeInsets.only(right: 12),
                             width: 160,
                             decoration: BoxDecoration(
@@ -299,6 +310,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               ],
                             ),
                           );
+                          ),
                         }).toList(),
                       ),
                     ),

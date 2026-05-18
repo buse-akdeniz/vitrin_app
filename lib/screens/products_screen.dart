@@ -4,6 +4,7 @@ import 'add_product_screen.dart';
 import 'comments_screen.dart';
 import 'favorites_screen.dart';
 import 'offers_screen.dart';
+import 'product_detail_screen.dart';
 
 class ProductsScreen extends StatefulWidget {
   final String? initialQuery;
@@ -475,7 +476,18 @@ class _ProductsScreenState extends State<ProductsScreen> {
                       final item = _products[index - 1] as Map<String, dynamic>;
                       final productId = (item['id'] ?? 0) as int;
                       final isFavorite = _favoriteProductIds.contains(productId);
-                      return Container(
+                      return InkWell(
+                        borderRadius: BorderRadius.circular(16),
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => ProductDetailScreen(
+                              product: item,
+                              initiallyFavorite: isFavorite,
+                            ),
+                          ),
+                        ),
+                        child: Container(
                         decoration: BoxDecoration(
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(16),
@@ -489,13 +501,13 @@ class _ProductsScreenState extends State<ProductsScreen> {
                               Row(
                                 children: [
                                   Container(
-                                    width: 50,
-                                    height: 50,
+                                    width: 62,
+                                    height: 62,
                                     decoration: BoxDecoration(
                                       color: const Color(0xFFF1F1F1),
                                       borderRadius: BorderRadius.circular(12),
                                     ),
-                                    child: const Icon(Icons.checkroom, color: Color(0xFF2D2D2D)),
+                                    child: const Icon(Icons.image, color: Color(0xFF2D2D2D)),
                                   ),
                                   const SizedBox(width: 10),
                                   Expanded(
@@ -504,7 +516,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
                                       children: [
                                         Text(
                                           (item['title'] ?? '').toString(),
-                                          maxLines: 1,
+                                          maxLines: 2,
                                           overflow: TextOverflow.ellipsis,
                                           style: const TextStyle(fontWeight: FontWeight.w700),
                                         ),
@@ -518,9 +530,18 @@ class _ProductsScreenState extends State<ProductsScreen> {
                                       ],
                                     ),
                                   ),
-                                  Text(
-                                    '₺${item['price']}',
-                                    style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF2D2D2D)),
+                                  Column(
+                                    crossAxisAlignment: CrossAxisAlignment.end,
+                                    children: [
+                                      Text(
+                                        '₺${item['price']}',
+                                        style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF2D2D2D)),
+                                      ),
+                                      Text(
+                                        (item['seller_name'] ?? 'Satıcı').toString(),
+                                        style: const TextStyle(fontSize: 11, color: Color(0xFF888888)),
+                                      ),
+                                    ],
                                   ),
                                 ],
                               ),
@@ -557,6 +578,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
                                       isFavorite ? Icons.favorite : Icons.favorite_border,
                                       color: isFavorite ? Colors.red : const Color(0xFF2D2D2D),
                                     ),
+                                  );
                                   ),
                                 ],
                               )

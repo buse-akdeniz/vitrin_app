@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import 'product_detail_screen.dart';
 
 class FavoritesScreen extends StatefulWidget {
   const FavoritesScreen({super.key});
@@ -63,6 +64,15 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                     border: Border.all(color: const Color(0xFFE8E8E8)),
                   ),
                   child: ListTile(
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => ProductDetailScreen(
+                          product: p,
+                          initiallyFavorite: true,
+                        ),
+                      ),
+                    ),
                     title: Text((p['title'] ?? '').toString()),
                     subtitle: Text('₺${p['price']}'),
                     trailing: IconButton(
