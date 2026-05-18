@@ -154,6 +154,7 @@ class ApiService {
   static Future<Map<String, dynamic>> supportChat({
     required String message,
     List<Map<String, String>> history = const [],
+    String? orderNo,
   }) async {
     final response = await http.post(
       Uri.parse('$baseUrl/support/chat'),
@@ -161,6 +162,8 @@ class ApiService {
       body: jsonEncode({
         'message': message,
         'history': history,
+        if (orderNo != null && orderNo.trim().isNotEmpty)
+          'orderNo': orderNo.trim(),
       }),
     );
 

@@ -10,13 +10,14 @@ class SupportChatScreen extends StatefulWidget {
 
 class _SupportChatScreenState extends State<SupportChatScreen> {
   final TextEditingController _messageController = TextEditingController();
+  final TextEditingController _orderNoController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
 
   final List<Map<String, String>> _messages = [
     {
       'role': 'assistant',
       'text':
-          'Merhaba! Ben Vitrin destek asistanıyım. Kargo takibi, iade, iptal ve müşteri hizmetleri konularında yardımcı olabilirim.'
+          'Merhaba! Ben Vitrin destek asistanıyım. Kargo takibi, iade, iptal ve müşteri hizmetleri konularında yardımcı olabilirim. İstersen sipariş numaranı da yazabilirsin.'
     }
   ];
 
@@ -31,6 +32,7 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
   @override
   void dispose() {
     _messageController.dispose();
+    _orderNoController.dispose();
     _scrollController.dispose();
     super.dispose();
   }
@@ -60,6 +62,7 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
       final result = await ApiService.supportChat(
         message: text,
         history: history,
+        orderNo: _orderNoController.text,
       );
 
       final reply = (result['reply'] ?? '').toString().trim();
@@ -119,6 +122,26 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
       ),
       body: Column(
         children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
+            child: TextField(
+              controller: _orderNoController,
+              decoration: InputDecoration(
+                hintText: 'Sipariş No (opsiyonel)',
+                prefixIcon: const Icon(Icons.receipt_long),
+                filled: true,
+                fillColor: Colors.white,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: Color(0xFFE8E8E8)),
+                ),
+              ),
+            ),
+          ),
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
             child: Align(
