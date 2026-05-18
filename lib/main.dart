@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'services/api_service.dart';
+import 'screens/home_screen.dart';
+import 'screens/login_screen.dart';
 
 void main() {
   runApp(const VitrinApp());
@@ -10,31 +13,60 @@ class VitrinApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Vitrin App',
+      title: 'Vitrin',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        primarySwatch: Colors.indigo,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF2D2D2D),
+          brightness: Brightness.light,
+        ),
         useMaterial3: true,
       ),
-      home: const MainLayoutScreen(),
+      home: const SplashRouter(),
     );
   }
 }
 
-// Ana Ekran Düzeni (Main Layout Screen)
-class MainLayoutScreen extends StatefulWidget {
-  const MainLayoutScreen({super.key});
+class SplashRouter extends StatefulWidget {
+  const SplashRouter({super.key});
 
   @override
-  State<MainLayoutScreen> createState() => _MainLayoutScreenState();
+  State<SplashRouter> createState() => _SplashRouterState();
 }
 
-class _MainLayoutScreenState extends State<MainLayoutScreen> {
-  // Chat panelinin açık/kapalı olma durumunu tutan değişken (State)
-  bool _isChatOpen = false;
+class _SplashRouterState extends State<SplashRouter> {
+  bool _loading = true;
+  bool _hasToken = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkAuth();
+  }
+
+  Future<void> _checkAuth() async {
+    final token = await ApiService.getToken();
+    if (!mounted) return;
+    setState(() {
+      _hasToken = token != null && token.trim().isNotEmpty;
+      _loading = false;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
+    if (_loading) {
+      return const Scaffold(
+        backgroundColor: Color(0xFFF8F4F0),
+        body: Center(
+          child: CircularProgressIndicator(color: Color(0xFF2D2D2D)),
+        ),
+      );
+    }
+
+    return _hasToken ? const HomeScreen() : const LoginScreen();
+  }
+}
     return Scaffold(
       appBar: AppBar(
         title: const Text('Vitrin', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),

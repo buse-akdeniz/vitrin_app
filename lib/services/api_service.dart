@@ -148,4 +148,22 @@ class ApiService {
     );
     return jsonDecode(response.body);
   }
+
+  // ─── Destek Asistanı (AI Chat) ───────────────────────────────────────────
+
+  static Future<Map<String, dynamic>> supportChat({
+    required String message,
+    List<Map<String, String>> history = const [],
+  }) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/support/chat'),
+      headers: await _authHeaders(),
+      body: jsonEncode({
+        'message': message,
+        'history': history,
+      }),
+    );
+
+    return jsonDecode(response.body);
+  }
 }

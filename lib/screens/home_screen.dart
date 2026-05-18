@@ -3,6 +3,7 @@ import '../services/api_service.dart';
 import 'login_screen.dart';
 import 'profile_screen.dart';
 import 'products_screen.dart';
+import 'support_chat_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -266,6 +267,18 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
           ],
         ),
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const SupportChatScreen()),
+          );
+        },
+        backgroundColor: const Color(0xFF2D2D2D),
+        foregroundColor: Colors.white,
+        icon: const Icon(Icons.support_agent),
+        label: const Text('AI Destek'),
       ),
     );
   }
