@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import 'add_product_screen.dart';
+import 'comments_screen.dart';
+import 'favorites_screen.dart';
+import 'offers_screen.dart';
 
 class ProductsScreen extends StatefulWidget {
   const ProductsScreen({super.key});
@@ -13,6 +16,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
   bool _isLoading = true;
   List<dynamic> _products = [];
   Map<String, dynamic> _facets = {};
+  final Set<int> _favoriteProductIds = {};
   String? _error;
 
   final TextEditingController _quickSearchController = TextEditingController();
@@ -38,10 +42,20 @@ class _ProductsScreenState extends State<ProductsScreen> {
 
     try {
       final result = await ApiService.getProducts(filters: _filters);
+      final favoritesResult = await ApiService.getFavorites();
       if (result['success'] == true) {
+        final favoritesList = (favoritesResult['products'] as List?) ?? [];
         setState(() {
           _products = (result['products'] as List?) ?? [];
           _facets = (result['facets'] as Map<String, dynamic>?) ?? {};
+          _favoriteProductIds
+            ..clear()
+            ..addAll(
+              favoritesList
+                  .map((e) => (e as Map<String, dynamic>)['id'])
+                  .where((id) => id is int)
+                  .cast<int>(),
+            );
         });
       } else {
         setState(() => _error = result['message'] ?? 'Ürünler alınamadı.');
@@ -51,6 +65,76 @@ class _ProductsScreenState extends State<ProductsScreen> {
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  Future<void> _toggleFavorite(int productId) async {
+    final isFavorite = _favoriteProductIds.contains(productId);
+    final result = isFavorite
+        ? await ApiService.removeFavorite(productId)
+        : await ApiService.addFavorite(productId);
+
+    if (!mounted) return;
+    if (result['success'] == true) {
+      setState(() {
+        if (isFavorite) {
+          _favoriteProductIds.remove(productId);
+        } else {
+          _favoriteProductIds.add(productId);
+        }
+      });
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text((result['message'] ?? 'İşlem tamamlandı').toString())),
+    );
+  }
+
+  Future<void> _openOfferDialog(Map<String, dynamic> item) async {
+    final productId = (item['id'] ?? 0) as int;
+    final controller = TextEditingController();
+
+    await showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Teklif Ver'),
+          content: TextField(
+            controller: controller,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: const InputDecoration(
+              labelText: 'Teklif Tutarı (₺)',
+              hintText: 'Örn: 350',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Vazgeç'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                final amount = double.tryParse(controller.text.trim());
+                if (amount == null || amount <= 0) return;
+                final result = await ApiService.createOffer(
+                  productId: productId,
+                  amount: amount,
+                );
+                if (!mounted) return;
+                Navigator.pop(context);
+                ScaffoldMessenger.of(this.context).showSnackBar(
+                  SnackBar(content: Text((result['message'] ?? 'İşlem tamamlandı').toString())),
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF2D2D2D),
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Gönder'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   Future<void> _openFilters() async {
@@ -227,6 +311,20 @@ class _ProductsScreenState extends State<ProductsScreen> {
         ),
         actions: [
           IconButton(
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const FavoritesScreen()),
+            ),
+            icon: const Icon(Icons.favorite_border, color: Color(0xFF2D2D2D)),
+          ),
+          IconButton(
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const OffersScreen()),
+            ),
+            icon: const Icon(Icons.local_offer_outlined, color: Color(0xFF2D2D2D)),
+          ),
+          IconButton(
             onPressed: _openFilters,
             icon: const Icon(Icons.tune, color: Color(0xFF2D2D2D)),
           ),
@@ -294,38 +392,94 @@ class _ProductsScreenState extends State<ProductsScreen> {
                       }
 
                       final item = _products[index - 1] as Map<String, dynamic>;
+                      final productId = (item['id'] ?? 0) as int;
+                      final isFavorite = _favoriteProductIds.contains(productId);
                       return Container(
                         decoration: BoxDecoration(
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(16),
                           border: Border.all(color: const Color(0xFFE8E8E8)),
                         ),
-                        child: ListTile(
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                          leading: Container(
-                            width: 50,
-                            height: 50,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFF1F1F1),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: const Icon(Icons.checkroom, color: Color(0xFF2D2D2D)),
-                          ),
-                          title: Text(
-                            (item['title'] ?? '').toString(),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontWeight: FontWeight.w700),
-                          ),
-                          subtitle: Text(
-                            '${item['brand'] ?? ''} ${item['size'] ?? ''} • ${item['item_condition'] ?? ''} • ${(item['shipping_type'] ?? '') == 'buyer' ? 'Kargo Alıcı' : 'Kargo Satıcı'}',
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(color: Color(0xFF888888)),
-                          ),
-                          trailing: Text(
-                            '₺${item['price']}',
-                            style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF2D2D2D)),
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Container(
+                                    width: 50,
+                                    height: 50,
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFF1F1F1),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: const Icon(Icons.checkroom, color: Color(0xFF2D2D2D)),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          (item['title'] ?? '').toString(),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(fontWeight: FontWeight.w700),
+                                        ),
+                                        const SizedBox(height: 3),
+                                        Text(
+                                          '${item['brand'] ?? ''} ${item['size'] ?? ''} • ${item['item_condition'] ?? ''}',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(color: Color(0xFF888888)),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Text(
+                                    '₺${item['price']}',
+                                    style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF2D2D2D)),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 10),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: OutlinedButton.icon(
+                                      onPressed: () => _openOfferDialog(item),
+                                      icon: const Icon(Icons.local_offer_outlined, size: 18),
+                                      label: const Text('Teklif Ver'),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: OutlinedButton.icon(
+                                      onPressed: () => Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) => CommentsScreen(
+                                            productId: productId,
+                                            productTitle: (item['title'] ?? '').toString(),
+                                          ),
+                                        ),
+                                      ),
+                                      icon: const Icon(Icons.chat_bubble_outline, size: 18),
+                                      label: const Text('Yorumlar'),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  IconButton(
+                                    onPressed: () => _toggleFavorite(productId),
+                                    icon: Icon(
+                                      isFavorite ? Icons.favorite : Icons.favorite_border,
+                                      color: isFavorite ? Colors.red : const Color(0xFF2D2D2D),
+                                    ),
+                                  ),
+                                ],
+                              )
+                            ],
                           ),
                         ),
                       );

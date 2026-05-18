@@ -169,4 +169,102 @@ class ApiService {
 
     return jsonDecode(response.body);
   }
+
+  // ─── Teklifler ────────────────────────────────────────────────────────────
+
+  static Future<Map<String, dynamic>> getOfferQuota() async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/offers/quota'),
+      headers: await _authHeaders(),
+    );
+    return jsonDecode(response.body);
+  }
+
+  static Future<Map<String, dynamic>> createOffer({
+    required int productId,
+    required double amount,
+  }) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/offers'),
+      headers: await _authHeaders(),
+      body: jsonEncode({'productId': productId, 'amount': amount}),
+    );
+    return jsonDecode(response.body);
+  }
+
+  static Future<Map<String, dynamic>> getSentOffers() async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/offers/sent'),
+      headers: await _authHeaders(),
+    );
+    return jsonDecode(response.body);
+  }
+
+  static Future<Map<String, dynamic>> getReceivedOffers() async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/offers/received'),
+      headers: await _authHeaders(),
+    );
+    return jsonDecode(response.body);
+  }
+
+  static Future<Map<String, dynamic>> respondOffer({
+    required int offerId,
+    required String action,
+  }) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/offers/$offerId/respond'),
+      headers: await _authHeaders(),
+      body: jsonEncode({'action': action}),
+    );
+    return jsonDecode(response.body);
+  }
+
+  // ─── Yorumlar ─────────────────────────────────────────────────────────────
+
+  static Future<Map<String, dynamic>> getComments(int productId) async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/products/$productId/comments'),
+      headers: {'Content-Type': 'application/json'},
+    );
+    return jsonDecode(response.body);
+  }
+
+  static Future<Map<String, dynamic>> addComment({
+    required int productId,
+    required String content,
+  }) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/products/$productId/comments'),
+      headers: await _authHeaders(),
+      body: jsonEncode({'content': content}),
+    );
+    return jsonDecode(response.body);
+  }
+
+  // ─── Favoriler ────────────────────────────────────────────────────────────
+
+  static Future<Map<String, dynamic>> getFavorites() async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/favorites'),
+      headers: await _authHeaders(),
+    );
+    return jsonDecode(response.body);
+  }
+
+  static Future<Map<String, dynamic>> addFavorite(int productId) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/favorites/$productId'),
+      headers: await _authHeaders(),
+    );
+    return jsonDecode(response.body);
+  }
+
+  static Future<Map<String, dynamic>> removeFavorite(int productId) async {
+    final response = await http.delete(
+      Uri.parse('$baseUrl/favorites/$productId'),
+      headers: await _authHeaders(),
+    );
+    return jsonDecode(response.body);
+  }
 }
