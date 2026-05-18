@@ -211,11 +211,23 @@ class ApiService {
   static Future<Map<String, dynamic>> respondOffer({
     required int offerId,
     required String action,
+    double? counterAmount,
   }) async {
     final response = await http.post(
       Uri.parse('$baseUrl/offers/$offerId/respond'),
       headers: await _authHeaders(),
-      body: jsonEncode({'action': action}),
+      body: jsonEncode({
+        'action': action,
+        if (counterAmount != null) 'counterAmount': counterAmount,
+      }),
+    );
+    return jsonDecode(response.body);
+  }
+
+  static Future<Map<String, dynamic>> getOfferHistory(int offerId) async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/offers/$offerId/history'),
+      headers: await _authHeaders(),
     );
     return jsonDecode(response.body);
   }

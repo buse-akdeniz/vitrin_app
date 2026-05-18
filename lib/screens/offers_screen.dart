@@ -66,6 +66,88 @@ class _OffersScreenState extends State<OffersScreen>
     _load();
   }
 
+  Future<void> _counterOffer(int offerId) async {
+    final controller = TextEditingController();
+    await showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Karşı Teklif Ver'),
+          content: TextField(
+            controller: controller,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: const InputDecoration(
+              labelText: 'Tutar (₺)',
+              hintText: 'Örn: 420',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Vazgeç'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                final amount = double.tryParse(controller.text.trim());
+                if (amount == null || amount <= 0) return;
+                final result = await ApiService.respondOffer(
+                  offerId: offerId,
+                  action: 'counter',
+                  counterAmount: amount,
+                );
+                if (!mounted) return;
+                Navigator.pop(context);
+                ScaffoldMessenger.of(this.context).showSnackBar(
+                  SnackBar(content: Text((result['message'] ?? 'İşlem tamamlandı').toString())),
+                );
+                _load();
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF2D2D2D),
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Gönder'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _showHistory(int offerId) async {
+    final result = await ApiService.getOfferHistory(offerId);
+    if (!mounted) return;
+    final events = (result['events'] as List?) ?? [];
+
+    showModalBottomSheet(
+      context: context,
+      builder: (context) {
+        return Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            children: [
+              const Text('Teklif Geçmişi', style: TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 10),
+              Expanded(
+                child: ListView.builder(
+                  itemCount: events.length,
+                  itemBuilder: (_, i) {
+                    final e = events[i] as Map<String, dynamic>;
+                    return ListTile(
+                      dense: true,
+                      title: Text('${e['actor_name'] ?? 'Kullanıcı'} • ${e['event_type'] ?? '-'}'),
+                      subtitle: Text('${e['note'] ?? ''} ${e['amount'] != null ? '(₺${e['amount']})' : ''}'),
+                    );
+                  },
+                ),
+              )
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   Widget _offerCard(Map<String, dynamic> item, {bool received = false}) {
     final status = (item['status'] ?? 'pending').toString();
     return Container(
@@ -92,10 +174,26 @@ class _OffersScreenState extends State<OffersScreen>
                   : 'Satıcı: ${item['seller_name'] ?? '-'}',
               style: const TextStyle(color: Color(0xFF777777)),
             ),
+            const SizedBox(height: 6),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: () => _showHistory(item['id'] as int),
+                icon: const Icon(Icons.history, size: 16),
+                label: const Text('Geçmiş'),
+              ),
+            ),
             if (received && status == 'pending') ...[
-              const SizedBox(height: 10),
+              const SizedBox(height: 2),
               Row(
                 children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => _counterOffer(item['id'] as int),
+                      child: const Text('Karşı Teklif'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: OutlinedButton(
                       onPressed: () => _respond(item['id'] as int, 'reject'),
@@ -111,6 +209,30 @@ class _OffersScreenState extends State<OffersScreen>
                         foregroundColor: Colors.white,
                       ),
                       child: const Text('Kabul Et'),
+                    ),
+                  ),
+                ],
+              )
+            ],
+            if (!received && status == 'countered') ...[
+              const SizedBox(height: 2),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => _respond(item['id'] as int, 'reject'),
+                      child: const Text('Karşı Teklifi Reddet'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () => _respond(item['id'] as int, 'accept'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF2D2D2D),
+                        foregroundColor: Colors.white,
+                      ),
+                      child: const Text('Karşı Teklifi Kabul Et'),
                     ),
                   ),
                 ],
