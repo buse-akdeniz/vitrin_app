@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import '../services/api_service.dart';
 import 'login_screen.dart';
 import 'profile_screen.dart';
@@ -7,6 +8,7 @@ import 'support_chat_screen.dart';
 import 'product_detail_screen.dart';
 import '../widgets/product_image.dart';
 import 'notifications_screen.dart';
+import 'buyer_panel_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -20,17 +22,75 @@ class _HomeScreenState extends State<HomeScreen> {
   List<dynamic> _followedSellers = [];
   List<dynamic> _recommendedProducts = [];
   final TextEditingController _searchController = TextEditingController();
+  Timer? _badgeTimer;
+  int _unreadNotificationCount = 0;
+  int _activeOrderBadgeCount = 0;
 
   @override
   void initState() {
     super.initState();
     _loadHomeData();
+    _loadBadges();
+    _badgeTimer = Timer.periodic(
+      const Duration(seconds: 20),
+      (_) => _loadBadges(),
+    );
   }
 
   @override
   void dispose() {
+    _badgeTimer?.cancel();
     _searchController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadBadges() async {
+    try {
+      final results = await Future.wait([
+        ApiService.getUnreadNotificationCount(),
+        ApiService.getBuyerOrderBadges(),
+      ]);
+
+      if (!mounted) return;
+      setState(() {
+        _unreadNotificationCount = (results[0]['unreadCount'] ?? 0) as int;
+        _activeOrderBadgeCount =
+            ((results[1]['badges'] as Map<String, dynamic>?)?['activeShipmentCount'] ?? 0) as int;
+      });
+    } catch (_) {
+      // sessiz
+    }
+  }
+
+  Widget _buildBadgeIcon(IconData icon, int count) {
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Icon(icon, color: const Color(0xFF2D2D2D)),
+        if (count > 0)
+          Positioned(
+            right: -6,
+            top: -5,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+              decoration: BoxDecoration(
+                color: Colors.red,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              constraints: const BoxConstraints(minWidth: 16),
+              child: Text(
+                count > 99 ? '99+' : '$count',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
   }
 
   Future<void> _loadHomeData() async {
@@ -115,11 +175,24 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.notifications_none, color: Color(0xFF2D2D2D)),
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const NotificationsScreen()),
-            ),
+            icon: _buildBadgeIcon(Icons.shopping_bag_outlined, _activeOrderBadgeCount),
+            onPressed: () async {
+              await Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const BuyerPanelScreen()),
+              );
+              _loadBadges();
+            },
+          ),
+          IconButton(
+            icon: _buildBadgeIcon(Icons.notifications_none, _unreadNotificationCount),
+            onPressed: () async {
+              await Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const NotificationsScreen()),
+              );
+              _loadBadges();
+            },
           ),
           IconButton(
             icon: const Icon(Icons.person_outline, color: Color(0xFF2D2D2D)),

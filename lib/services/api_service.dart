@@ -421,6 +421,14 @@ class ApiService {
     return jsonDecode(response.body);
   }
 
+  static Future<Map<String, dynamic>> getBuyerOrderBadges() async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/buyer/orders/badges'),
+      headers: await _authHeaders(),
+    );
+    return jsonDecode(response.body);
+  }
+
   static Future<Map<String, dynamic>> requestCancel(int orderId) async {
     final response = await http.post(
       Uri.parse('$baseUrl/buyer/orders/$orderId/cancel-request'),
@@ -450,6 +458,14 @@ class ApiService {
   static Future<Map<String, dynamic>> getNotifications() async {
     final response = await http.get(
       Uri.parse('$baseUrl/notifications'),
+      headers: await _authHeaders(),
+    );
+    return jsonDecode(response.body);
+  }
+
+  static Future<Map<String, dynamic>> getUnreadNotificationCount() async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/notifications/unread-count'),
       headers: await _authHeaders(),
     );
     return jsonDecode(response.body);
