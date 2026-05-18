@@ -1,6 +1,6 @@
 {
-    "name": "dolap_app",
-    "short_name": "dolap_app",
+    "name": "Vitrin",
+    "short_name": "Vitrin",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
