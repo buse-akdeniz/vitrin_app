@@ -17,6 +17,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
   List<dynamic> _products = [];
   Map<String, dynamic> _facets = {};
   final Set<int> _favoriteProductIds = {};
+  int _offerAlertCount = 0;
   String? _error;
 
   final TextEditingController _quickSearchController = TextEditingController();
@@ -26,6 +27,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
   void initState() {
     super.initState();
     _loadProducts();
+    _loadOfferBadge();
   }
 
   @override
@@ -64,6 +66,33 @@ class _ProductsScreenState extends State<ProductsScreen> {
       setState(() => _error = 'Sunucuya bağlanılamadı.');
     } finally {
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _loadOfferBadge() async {
+    try {
+      final results = await Future.wait([
+        ApiService.getSentOffers(),
+        ApiService.getReceivedOffers(),
+      ]);
+
+      final sent = (results[0]['offers'] as List?) ?? [];
+      final received = (results[1]['offers'] as List?) ?? [];
+
+      final sellerPending = received.where((o) {
+        final m = o as Map<String, dynamic>;
+        return (m['status'] ?? '').toString() == 'pending';
+      }).length;
+
+      final buyerPending = sent.where((o) {
+        final m = o as Map<String, dynamic>;
+        return (m['status'] ?? '').toString() == 'countered';
+      }).length;
+
+      if (!mounted) return;
+      setState(() => _offerAlertCount = sellerPending + buyerPending);
+    } catch (_) {
+      // sessiz geç
     }
   }
 
@@ -318,11 +347,41 @@ class _ProductsScreenState extends State<ProductsScreen> {
             icon: const Icon(Icons.favorite_border, color: Color(0xFF2D2D2D)),
           ),
           IconButton(
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const OffersScreen()),
+            onPressed: () async {
+              await Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const OffersScreen()),
+              );
+              _loadOfferBadge();
+            },
+            icon: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                const Icon(Icons.local_offer_outlined, color: Color(0xFF2D2D2D)),
+                if (_offerAlertCount > 0)
+                  Positioned(
+                    right: -6,
+                    top: -4,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                      decoration: BoxDecoration(
+                        color: Colors.red,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      constraints: const BoxConstraints(minWidth: 16),
+                      child: Text(
+                        _offerAlertCount > 99 ? '99+' : '$_offerAlertCount',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
             ),
-            icon: const Icon(Icons.local_offer_outlined, color: Color(0xFF2D2D2D)),
           ),
           IconButton(
             onPressed: _openFilters,
