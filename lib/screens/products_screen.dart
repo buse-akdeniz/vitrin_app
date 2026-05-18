@@ -172,12 +172,14 @@ class _ProductsScreenState extends State<ProductsScreen> {
     final fabricController = TextEditingController(text: _filters['fabricType']?.toString() ?? '');
     final shoeSizeController = TextEditingController(text: _filters['shoeSize']?.toString() ?? '');
     final colorController = TextEditingController(text: _filters['color']?.toString() ?? '');
+    final descriptionController = TextEditingController(text: _filters['descriptionQuery']?.toString() ?? '');
     final minController = TextEditingController(text: _filters['minPrice']?.toString() ?? '');
     final maxController = TextEditingController(text: _filters['maxPrice']?.toString() ?? '');
 
     String gender = _filters['gender']?.toString() ?? '';
     String condition = _filters['condition']?.toString() ?? '';
     String shippingType = _filters['shippingType']?.toString() ?? '';
+    String packageSize = _filters['packageSize']?.toString() ?? '';
     bool bestSellers = _filters['bestSellers'] == '1';
     bool starSellers = _filters['starSellers'] == '1';
 
@@ -202,6 +204,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
                     TextField(controller: fabricController, decoration: const InputDecoration(labelText: 'Kumaş Türü')),
                     TextField(controller: shoeSizeController, decoration: const InputDecoration(labelText: 'Ayak Numarası')),
                     TextField(controller: colorController, decoration: const InputDecoration(labelText: 'Renk')),
+                    TextField(controller: descriptionController, decoration: const InputDecoration(labelText: 'Açıklama içinde ara')),
                     DropdownButtonFormField<String>(
                       value: gender.isEmpty ? null : gender,
                       decoration: const InputDecoration(labelText: 'Cinsiyet'),
@@ -232,6 +235,16 @@ class _ProductsScreenState extends State<ProductsScreen> {
                         DropdownMenuItem(value: 'seller', child: Text('Kargo Satıcıya Ait')),
                       ],
                       onChanged: (v) => setModalState(() => shippingType = v ?? ''),
+                    ),
+                    DropdownButtonFormField<String>(
+                      value: packageSize.isEmpty ? null : packageSize,
+                      decoration: const InputDecoration(labelText: 'Paket Boyutu'),
+                      items: const [
+                        DropdownMenuItem(value: 'small', child: Text('Küçük Paket')),
+                        DropdownMenuItem(value: 'medium', child: Text('Orta Paket')),
+                        DropdownMenuItem(value: 'large', child: Text('Büyük Paket')),
+                      ],
+                      onChanged: (v) => setModalState(() => packageSize = v ?? ''),
                     ),
                     TextField(controller: minController, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Min Fiyat')),
                     TextField(controller: maxController, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Max Fiyat')),
@@ -272,6 +285,8 @@ class _ProductsScreenState extends State<ProductsScreen> {
                                   if (gender.isNotEmpty) 'gender': gender,
                                   if (condition.isNotEmpty) 'condition': condition,
                                   if (shippingType.isNotEmpty) 'shippingType': shippingType,
+                                  if (packageSize.isNotEmpty) 'packageSize': packageSize,
+                                  if (descriptionController.text.trim().isNotEmpty) 'descriptionQuery': descriptionController.text.trim(),
                                   if (minController.text.trim().isNotEmpty) 'minPrice': minController.text.trim(),
                                   if (maxController.text.trim().isNotEmpty) 'maxPrice': maxController.text.trim(),
                                   if (bestSellers) 'bestSellers': '1',
@@ -488,7 +503,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
                                         ),
                                         const SizedBox(height: 3),
                                         Text(
-                                          '${item['brand'] ?? ''} ${item['size'] ?? ''} • ${item['item_condition'] ?? ''}',
+                                          '${item['brand'] ?? ''} ${item['size'] ?? ''} • ${item['item_condition'] ?? ''} • ${(item['package_size'] ?? 'medium') == 'small' ? 'Küçük Paket' : (item['package_size'] ?? 'medium') == 'large' ? 'Büyük Paket' : 'Orta Paket'}',
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
                                           style: const TextStyle(color: Color(0xFF888888)),

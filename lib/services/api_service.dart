@@ -119,6 +119,7 @@ class ApiService {
     String? gender,
     String? condition,
     String? shippingType,
+    String? packageSize,
     String? color,
     String? imageUrl,
     String? description,
@@ -139,12 +140,34 @@ class ApiService {
         'gender': gender ?? '',
         'condition': condition ?? '',
         'shippingType': shippingType ?? 'seller',
+        'packageSize': packageSize ?? 'medium',
         'color': color ?? '',
         'imageUrl': imageUrl ?? '',
         'description': description ?? '',
         'isSos': isSos,
         'sosDiscountPercent': sosDiscountPercent,
       }),
+    );
+    return jsonDecode(response.body);
+  }
+
+  static Future<Map<String, dynamic>> getPriceInsights({
+    String? title,
+    String? category,
+    String? brand,
+  }) async {
+    final query = <String, String>{
+      if (title != null && title.trim().isNotEmpty) 'title': title.trim(),
+      if (category != null && category.trim().isNotEmpty)
+        'category': category.trim(),
+      if (brand != null && brand.trim().isNotEmpty) 'brand': brand.trim(),
+    };
+
+    final response = await http.get(
+      Uri.parse('$baseUrl/products/price-insights').replace(
+        queryParameters: query.isEmpty ? null : query,
+      ),
+      headers: {'Content-Type': 'application/json'},
     );
     return jsonDecode(response.body);
   }

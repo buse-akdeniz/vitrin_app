@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import 'add_product_screen.dart';
+import 'offers_screen.dart';
+import 'favorites_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -167,6 +170,48 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                       const SizedBox(height: 24),
 
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _quickAction(
+                              icon: Icons.add_box_outlined,
+                              label: 'Ürün Yükle',
+                              onTap: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                    builder: (_) => const AddProductScreen()),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: _quickAction(
+                              icon: Icons.local_offer_outlined,
+                              label: 'Tekliflerim',
+                              onTap: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                    builder: (_) => const OffersScreen()),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: _quickAction(
+                              icon: Icons.favorite_border,
+                              label: 'Favoriler',
+                              onTap: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                    builder: (_) => const FavoritesScreen()),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 16),
+
                       // Üyelik tarihi
                       Container(
                         width: double.infinity,
@@ -233,6 +278,35 @@ class _ProfileScreenState extends State<ProfileScreen> {
           borderSide: const BorderSide(color: Color(0xFF2D2D2D), width: 1.5),
         ),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+      ),
+    );
+  }
+
+  Widget _quickAction({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFFE8E8E8)),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: const Color(0xFF2D2D2D), size: 20),
+            const SizedBox(height: 6),
+            Text(
+              label,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 12, color: Color(0xFF2D2D2D)),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -25,8 +25,11 @@ class _AddProductScreenState extends State<AddProductScreen> {
   String _gender = 'Unisex';
   String _condition = 'Yeni Gibi';
   String _shippingType = 'seller';
+  String _packageSize = 'medium';
   bool _isSos = false;
   bool _isSaving = false;
+  bool _isLoadingInsights = false;
+  Map<String, dynamic>? _priceInsights;
 
   Future<void> _saveProduct() async {
     if (!_formKey.currentState!.validate()) return;
@@ -61,6 +64,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
         gender: _gender,
         condition: _condition,
         shippingType: _shippingType,
+        packageSize: _packageSize,
         color: _colorController.text.trim(),
         imageUrl: _imageUrlController.text.trim(),
         description: _descriptionController.text.trim(),
@@ -95,6 +99,29 @@ class _AddProductScreenState extends State<AddProductScreen> {
       );
     } finally {
       if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  Future<void> _loadPriceInsights() async {
+    setState(() => _isLoadingInsights = true);
+    try {
+      final result = await ApiService.getPriceInsights(
+        title: _titleController.text.trim(),
+        category: _categoryController.text.trim(),
+        brand: _brandController.text.trim(),
+      );
+      if (!mounted) return;
+      setState(() => _priceInsights = result);
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Benzer fiyatlar alınamadı.'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoadingInsights = false);
     }
   }
 
@@ -299,7 +326,61 @@ class _AddProductScreenState extends State<AddProductScreen> {
                 minLines: 3,
                 maxLines: 5,
                 decoration: _input('Açıklama'),
+                validator: (v) =>
+                    (v == null || v.trim().isEmpty) ? 'Açıklama zorunlu' : null,
               ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                value: _packageSize,
+                items: const [
+                  DropdownMenuItem(value: 'small', child: Text('Küçük Paket')),
+                  DropdownMenuItem(value: 'medium', child: Text('Orta Paket')),
+                  DropdownMenuItem(value: 'large', child: Text('Büyük Paket')),
+                ],
+                onChanged: (v) => setState(() => _packageSize = v ?? 'medium'),
+                decoration: _input('Paket Boyutu'),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: _isLoadingInsights ? null : _loadPriceInsights,
+                  icon: _isLoadingInsights
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.query_stats),
+                  label: const Text('Benzer Ürün Fiyatlarını Gör'),
+                ),
+              ),
+              if (_priceInsights != null) ...[
+                const SizedBox(height: 10),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFE8E8E8)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Benzer Ürün Fiyat Bilgisi',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 6),
+                      Text('Adet: ${_priceInsights?['count'] ?? 0}'),
+                      Text('Ortalama: ₺${_priceInsights?['avgPrice'] ?? '-'}'),
+                      Text('Min: ₺${_priceInsights?['minPrice'] ?? '-'}'),
+                      Text('Max: ₺${_priceInsights?['maxPrice'] ?? '-'}'),
+                    ],
+                  ),
+                ),
+              ],
               const SizedBox(height: 20),
               SizedBox(
                 width: double.infinity,
