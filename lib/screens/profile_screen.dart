@@ -3,6 +3,9 @@ import '../services/api_service.dart';
 import 'add_product_screen.dart';
 import 'offers_screen.dart';
 import 'favorites_screen.dart';
+import 'seller_panel_screen.dart';
+import 'buyer_panel_screen.dart';
+import 'notifications_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -208,6 +211,69 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             ),
                           ),
                         ],
+                      ),
+
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _quickAction(
+                              icon: Icons.store_mall_directory_outlined,
+                              label: 'Satıcı Paneli',
+                              onTap: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                    builder: (_) => const SellerPanelScreen()),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: _quickAction(
+                              icon: Icons.shopping_bag_outlined,
+                              label: 'Alıcı Paneli',
+                              onTap: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                    builder: (_) => const BuyerPanelScreen()),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: _quickAction(
+                              icon: Icons.notifications_none,
+                              label: 'Bildirimler',
+                              onTap: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                    builder: (_) => const NotificationsScreen()),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: const Color(0xFFE8E8E8)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Güven / Puan', style: TextStyle(fontWeight: FontWeight.bold)),
+                            const SizedBox(height: 6),
+                            Text('Satıcı Puanı: ${_user?['seller_rating'] ?? 0}'),
+                            Text('Rozet: ${(_user?['is_star_seller'] ?? 0) == 1 ? 'Yıldız Satıcı' : 'Standart'}'),
+                            Text('Doğrulama: ${(_user?['is_verified'] ?? 0) == 1 ? 'Doğrulanmış' : 'Bekliyor'}'),
+                          ],
+                        ),
                       ),
 
                       const SizedBox(height: 16),

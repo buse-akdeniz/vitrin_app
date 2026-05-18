@@ -6,6 +6,7 @@ import 'products_screen.dart';
 import 'support_chat_screen.dart';
 import 'product_detail_screen.dart';
 import '../widgets/product_image.dart';
+import 'notifications_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -113,6 +114,13 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.notifications_none, color: Color(0xFF2D2D2D)),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const NotificationsScreen()),
+            ),
+          ),
           IconButton(
             icon: const Icon(Icons.person_outline, color: Color(0xFF2D2D2D)),
             onPressed: () => Navigator.push(

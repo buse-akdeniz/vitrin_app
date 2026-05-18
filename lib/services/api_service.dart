@@ -336,4 +336,138 @@ class ApiService {
     );
     return jsonDecode(response.body);
   }
+
+  // ─── Satıcı Paneli ───────────────────────────────────────────────────────
+
+  static Future<Map<String, dynamic>> getSellerPanel() async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/seller/panel'),
+      headers: await _authHeaders(),
+    );
+    return jsonDecode(response.body);
+  }
+
+  static Future<Map<String, dynamic>> getSellerProducts() async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/seller/products'),
+      headers: await _authHeaders(),
+    );
+    return jsonDecode(response.body);
+  }
+
+  static Future<Map<String, dynamic>> updateSellerProduct({
+    required int productId,
+    String? title,
+    String? description,
+    double? price,
+    String? shippingType,
+    String? packageSize,
+    String? saleStatus,
+  }) async {
+    final response = await http.put(
+      Uri.parse('$baseUrl/seller/products/$productId'),
+      headers: await _authHeaders(),
+      body: jsonEncode({
+        if (title != null) 'title': title,
+        if (description != null) 'description': description,
+        if (price != null) 'price': price,
+        if (shippingType != null) 'shippingType': shippingType,
+        if (packageSize != null) 'packageSize': packageSize,
+        if (saleStatus != null) 'saleStatus': saleStatus,
+      }),
+    );
+    return jsonDecode(response.body);
+  }
+
+  static Future<Map<String, dynamic>> getSellerOrders() async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/seller/orders'),
+      headers: await _authHeaders(),
+    );
+    return jsonDecode(response.body);
+  }
+
+  static Future<Map<String, dynamic>> shipOrder({
+    required int orderId,
+    String trackingNo = '',
+    String shipmentStatus = 'shipped',
+  }) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/seller/orders/$orderId/ship'),
+      headers: await _authHeaders(),
+      body: jsonEncode({
+        'trackingNo': trackingNo,
+        'shipmentStatus': shipmentStatus,
+      }),
+    );
+    return jsonDecode(response.body);
+  }
+
+  static Future<Map<String, dynamic>> markOrderDelivered(int orderId) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/seller/orders/$orderId/deliver'),
+      headers: await _authHeaders(),
+    );
+    return jsonDecode(response.body);
+  }
+
+  // ─── Alıcı Paneli ────────────────────────────────────────────────────────
+
+  static Future<Map<String, dynamic>> getBuyerOrders() async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/buyer/orders'),
+      headers: await _authHeaders(),
+    );
+    return jsonDecode(response.body);
+  }
+
+  static Future<Map<String, dynamic>> requestCancel(int orderId) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/buyer/orders/$orderId/cancel-request'),
+      headers: await _authHeaders(),
+    );
+    return jsonDecode(response.body);
+  }
+
+  static Future<Map<String, dynamic>> requestReturn(int orderId) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/buyer/orders/$orderId/return-request'),
+      headers: await _authHeaders(),
+    );
+    return jsonDecode(response.body);
+  }
+
+  static Future<Map<String, dynamic>> getOrderTracking(int orderId) async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/orders/$orderId/tracking'),
+      headers: await _authHeaders(),
+    );
+    return jsonDecode(response.body);
+  }
+
+  // ─── Bildirimler ─────────────────────────────────────────────────────────
+
+  static Future<Map<String, dynamic>> getNotifications() async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/notifications'),
+      headers: await _authHeaders(),
+    );
+    return jsonDecode(response.body);
+  }
+
+  static Future<Map<String, dynamic>> markNotificationRead(int notificationId) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/notifications/$notificationId/read'),
+      headers: await _authHeaders(),
+    );
+    return jsonDecode(response.body);
+  }
+
+  static Future<Map<String, dynamic>> markAllNotificationsRead() async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/notifications/read-all'),
+      headers: await _authHeaders(),
+    );
+    return jsonDecode(response.body);
+  }
 }
