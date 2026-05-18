@@ -6,7 +6,9 @@ import 'favorites_screen.dart';
 import 'offers_screen.dart';
 
 class ProductsScreen extends StatefulWidget {
-  const ProductsScreen({super.key});
+  final String? initialQuery;
+
+  const ProductsScreen({super.key, this.initialQuery});
 
   @override
   State<ProductsScreen> createState() => _ProductsScreenState();
@@ -26,6 +28,11 @@ class _ProductsScreenState extends State<ProductsScreen> {
   @override
   void initState() {
     super.initState();
+    final initial = widget.initialQuery?.trim() ?? '';
+    if (initial.isNotEmpty) {
+      _filters['q'] = initial;
+      _quickSearchController.text = initial;
+    }
     _loadProducts();
     _loadOfferBadge();
   }

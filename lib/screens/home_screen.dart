@@ -14,12 +14,18 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   List<dynamic> _sosProducts = [];
-  
+  final TextEditingController _searchController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     _loadSosProducts();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadSosProducts() async {
@@ -44,6 +50,16 @@ class _HomeScreenState extends State<HomeScreen> {
       context,
       MaterialPageRoute(builder: (_) => const LoginScreen()),
       (_) => false,
+    );
+  }
+
+  void _openSearchResults() {
+    final query = _searchController.text.trim();
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ProductsScreen(initialQuery: query),
+      ),
     );
   }
 
@@ -107,6 +123,30 @@ class _HomeScreenState extends State<HomeScreen> {
                   const Text(
                     'Yeni ürünleri keşfetmeye başla',
                     style: TextStyle(fontSize: 14, color: Color(0xFF888888)),
+                  ),
+                  const SizedBox(height: 14),
+                  TextField(
+                    controller: _searchController,
+                    textInputAction: TextInputAction.search,
+                    onSubmitted: (_) => _openSearchResults(),
+                    decoration: InputDecoration(
+                      hintText: 'Ürün, marka veya açıklama ara...',
+                      filled: true,
+                      fillColor: Colors.white,
+                      prefixIcon: const Icon(Icons.search),
+                      suffixIcon: IconButton(
+                        onPressed: _openSearchResults,
+                        icon: const Icon(Icons.arrow_forward),
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Color(0xFFE8E8E8)),
+                      ),
+                    ),
                   ),
                   const SizedBox(height: 24),
                   ElevatedButton.icon(
