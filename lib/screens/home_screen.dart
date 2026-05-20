@@ -26,6 +26,7 @@ class _HomeScreenState extends State<HomeScreen> {
   int _unreadNotificationCount = 0;
   int _activeOrderBadgeCount = 0;
   Map<String, dynamic> _userProfile = {};
+  int _showcaseCount = 0;
 
   @override
   void initState() {
@@ -109,6 +110,7 @@ class _HomeScreenState extends State<HomeScreen> {
       if (!mounted) return;
       setState(() {
         _userProfile = result['user'] ?? {};
+        _showcaseCount = (result['showcase'] as List?)?.length ?? 0;
       });
     } catch (_) {}
   }
@@ -249,9 +251,12 @@ class _HomeScreenState extends State<HomeScreen> {
                         color: Color(0xFF2D2D2D)),
                   ),
                   const SizedBox(height: 8),
-                  const Text(
-                    'Yeni ürünleri keşfetmeye başla',
-                    style: TextStyle(fontSize: 14, color: Color(0xFF888888)),
+                  Text(
+                    _showcaseCount > 0
+                        ? 'Vitrininde $_showcaseCount ürün var'
+                        : 'Yeni ürünleri keşfetmeye başla',
+                    style: const TextStyle(
+                        fontSize: 14, color: Color(0xFF888888)),
                   ),
                   const SizedBox(height: 14),
                   TextField(
