@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -156,6 +157,60 @@ class ApiService {
         'sosDiscountPercent': sosDiscountPercent,
       }),
     );
+    return jsonDecode(response.body);
+  }
+
+  static Future<Map<String, dynamic>> createProductWithImage({
+    required String title,
+    required double price,
+    required String imagePath,
+    String? category,
+    String? brand,
+    String? size,
+    String? fabricType,
+    String? shoeSize,
+    String? gender,
+    String? condition,
+    String? shippingType,
+    String? packageSize,
+    String? color,
+    String? description,
+    bool isSos = false,
+    int sosDiscountPercent = 0,
+  }) async {
+    final token = await getToken();
+
+    final request = http.MultipartRequest(
+      'POST',
+      Uri.parse('$baseUrl/products/upload'),
+    );
+
+    if (token != null && token.isNotEmpty) {
+      request.headers['Authorization'] = 'Bearer $token';
+    }
+
+    request.fields['title'] = title;
+    request.fields['price'] = price.toString();
+    request.fields['category'] = category ?? '';
+    request.fields['brand'] = brand ?? '';
+    request.fields['size'] = size ?? '';
+    request.fields['fabricType'] = fabricType ?? '';
+    request.fields['shoeSize'] = shoeSize ?? '';
+    request.fields['gender'] = gender ?? '';
+    request.fields['condition'] = condition ?? '';
+    request.fields['shippingType'] = shippingType ?? 'seller';
+    request.fields['packageSize'] = packageSize ?? 'medium';
+    request.fields['color'] = color ?? '';
+    request.fields['description'] = description ?? '';
+    request.fields['isSos'] = isSos ? 'true' : 'false';
+    request.fields['sosDiscountPercent'] = sosDiscountPercent.toString();
+
+    request.files.add(
+      await http.MultipartFile.fromPath('image', File(imagePath).path),
+    );
+
+    final streamed = await request.send();
+    final response = await http.Response.fromStream(streamed);
     return jsonDecode(response.body);
   }
 

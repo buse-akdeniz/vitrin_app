@@ -38,6 +38,12 @@ class _AddProductScreenState extends State<AddProductScreen> {
     if (!mounted || file == null) return;
     setState(() => _pickedImage = file);
   }
+
+  Future<void> _captureFromCamera() async {
+    final file = await _picker.pickImage(source: ImageSource.camera, imageQuality: 85);
+    if (!mounted || file == null) return;
+    setState(() => _pickedImage = file);
+  }
   bool _isLoadingInsights = false;
   Map<String, dynamic>? _priceInsights;
 
@@ -63,26 +69,48 @@ class _AddProductScreenState extends State<AddProductScreen> {
 
     setState(() => _isSaving = true);
     try {
-      final result = await ApiService.createProduct(
-        title: _titleController.text.trim(),
-        price: double.parse(_priceController.text.trim().replaceAll(',', '.')),
-        category: _categoryController.text.trim(),
-        brand: _brandController.text.trim(),
-        size: _sizeController.text.trim(),
-        fabricType: _fabricTypeController.text.trim(),
-        shoeSize: _shoeSizeController.text.trim(),
-        gender: _gender,
-        condition: _condition,
-        shippingType: _shippingType,
-        packageSize: _packageSize,
-        color: _colorController.text.trim(),
-        imageUrl: _imageUrlController.text.trim().isNotEmpty
-          ? _imageUrlController.text.trim()
-          : (_pickedImage?.path ?? ''),
-        description: _descriptionController.text.trim(),
-        isSos: _isSos,
-        sosDiscountPercent: sosDiscount,
-      );
+      final parsedPrice =
+          double.parse(_priceController.text.trim().replaceAll(',', '.'));
+
+      final result = _pickedImage != null
+          ? await ApiService.createProductWithImage(
+              title: _titleController.text.trim(),
+              price: parsedPrice,
+              imagePath: _pickedImage!.path,
+              category: _categoryController.text.trim(),
+              brand: _brandController.text.trim(),
+              size: _sizeController.text.trim(),
+              fabricType: _fabricTypeController.text.trim(),
+              shoeSize: _shoeSizeController.text.trim(),
+              gender: _gender,
+              condition: _condition,
+              shippingType: _shippingType,
+              packageSize: _packageSize,
+              color: _colorController.text.trim(),
+              description: _descriptionController.text.trim(),
+              isSos: _isSos,
+              sosDiscountPercent: sosDiscount,
+            )
+          : await ApiService.createProduct(
+              title: _titleController.text.trim(),
+              price: parsedPrice,
+              category: _categoryController.text.trim(),
+              brand: _brandController.text.trim(),
+              size: _sizeController.text.trim(),
+              fabricType: _fabricTypeController.text.trim(),
+              shoeSize: _shoeSizeController.text.trim(),
+              gender: _gender,
+              condition: _condition,
+              shippingType: _shippingType,
+              packageSize: _packageSize,
+              color: _colorController.text.trim(),
+              imageUrl: _imageUrlController.text.trim().isNotEmpty
+                  ? _imageUrlController.text.trim()
+                  : '',
+              description: _descriptionController.text.trim(),
+              isSos: _isSos,
+              sosDiscountPercent: sosDiscount,
+            );
 
       if (!mounted) return;
       if (result['success'] == true) {
@@ -340,6 +368,14 @@ class _AddProductScreenState extends State<AddProductScreen> {
                       onPressed: _pickImage,
                       icon: const Icon(Icons.photo_library_outlined),
                       label: const Text('Galeriden Seç'),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _captureFromCamera,
+                      icon: const Icon(Icons.camera_alt_outlined),
+                      label: const Text('Kamera Aç'),
                     ),
                   ),
                 ],
