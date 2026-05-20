@@ -259,6 +259,8 @@ class ApiService {
   static Future<Map<String, dynamic>> stylistChat({
     required String message,
     List<Map<String, String>> history = const [],
+    String? occasion,
+    String? weather,
   }) async {
     final response = await http.post(
       Uri.parse('$baseUrl/stylist/chat'),
@@ -266,6 +268,9 @@ class ApiService {
       body: jsonEncode({
         'message': message,
         'history': history,
+        if (occasion != null && occasion.trim().isNotEmpty)
+          'occasion': occasion.trim(),
+        if (weather != null && weather.trim().isNotEmpty) 'weather': weather.trim(),
       }),
     );
 

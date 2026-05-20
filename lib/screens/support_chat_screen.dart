@@ -23,6 +23,8 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
 
   bool _isSending = false;
   bool _stylistMode = false;
+  String _occasion = 'Günlük';
+  String _weather = 'Ilık';
   List<String> _suggestions = const [
     'Kargom nerede?',
     'İade nasıl yaparım?',
@@ -42,6 +44,22 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
     'Bu eteğin üstüne ne gider?',
     'Hava serin, rahat ama şık kombin öner',
     'Siyah pantolonla 2 alternatif çıkar'
+  ];
+
+  static const List<String> _occasionOptions = [
+    'Günlük',
+    'Ofis',
+    'İş Görüşmesi',
+    'Akşam',
+    'Spor'
+  ];
+
+  static const List<String> _weatherOptions = [
+    'Sıcak',
+    'Ilık',
+    'Serin',
+    'Soğuk',
+    'Yağmurlu'
   ];
 
   void _switchMode(bool stylistMode) {
@@ -95,6 +113,8 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
           ? await ApiService.stylistChat(
               message: text,
               history: history,
+              occasion: _occasion,
+              weather: _weather,
             )
           : await ApiService.supportChat(
               message: text,
@@ -203,14 +223,82 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
             ),
           ),
           if (_stylistMode)
-            const Padding(
-              padding: EdgeInsets.fromLTRB(12, 10, 12, 4),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  'Stilist modu gardırobundaki ürünlerle kombin önerir.',
-                  style: TextStyle(fontSize: 12, color: Color(0xFF777777)),
-                ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Stilist modu gardırobundaki ürünlerle kombin önerir.',
+                    style: TextStyle(fontSize: 12, color: Color(0xFF777777)),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: DropdownButtonFormField<String>(
+                          value: _occasion,
+                          items: _occasionOptions
+                              .map(
+                                (o) => DropdownMenuItem(
+                                  value: o,
+                                  child: Text(o),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: _isSending
+                              ? null
+                              : (v) => setState(() => _occasion = v ?? _occasion),
+                          decoration: InputDecoration(
+                            labelText: 'Ortam',
+                            filled: true,
+                            fillColor: Colors.white,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide.none,
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide:
+                                  const BorderSide(color: Color(0xFFE8E8E8)),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: DropdownButtonFormField<String>(
+                          value: _weather,
+                          items: _weatherOptions
+                              .map(
+                                (w) => DropdownMenuItem(
+                                  value: w,
+                                  child: Text(w),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: _isSending
+                              ? null
+                              : (v) => setState(() => _weather = v ?? _weather),
+                          decoration: InputDecoration(
+                            labelText: 'Hava',
+                            filled: true,
+                            fillColor: Colors.white,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide.none,
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide:
+                                  const BorderSide(color: Color(0xFFE8E8E8)),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
           Padding(
