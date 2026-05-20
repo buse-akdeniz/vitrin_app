@@ -256,6 +256,22 @@ class ApiService {
     return jsonDecode(response.body);
   }
 
+  static Future<Map<String, dynamic>> stylistChat({
+    required String message,
+    List<Map<String, String>> history = const [],
+  }) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/stylist/chat'),
+      headers: await _authHeaders(),
+      body: jsonEncode({
+        'message': message,
+        'history': history,
+      }),
+    );
+
+    return jsonDecode(response.body);
+  }
+
   // ─── Teklifler ────────────────────────────────────────────────────────────
 
   static Future<Map<String, dynamic>> getOfferQuota() async {

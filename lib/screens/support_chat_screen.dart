@@ -22,12 +22,44 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
   ];
 
   bool _isSending = false;
+  bool _stylistMode = false;
   List<String> _suggestions = const [
     'Kargom nerede?',
     'İade nasıl yaparım?',
     'Sipariş iptali mümkün mü?',
     'Canlı desteğe nasıl bağlanırım?'
   ];
+
+  static const List<String> _supportSuggestions = [
+    'Kargom nerede?',
+    'İade nasıl yaparım?',
+    'Sipariş iptali mümkün mü?',
+    'Canlı desteğe nasıl bağlanırım?'
+  ];
+
+  static const List<String> _stylistSuggestions = [
+    'Bugün iş görüşmem var, ne giymeliyim?',
+    'Bu eteğin üstüne ne gider?',
+    'Hava serin, rahat ama şık kombin öner',
+    'Siyah pantolonla 2 alternatif çıkar'
+  ];
+
+  void _switchMode(bool stylistMode) {
+    if (_isSending) return;
+
+    setState(() {
+      _stylistMode = stylistMode;
+      _messages
+        ..clear()
+        ..add({
+          'role': 'assistant',
+          'text': stylistMode
+              ? 'Merhaba! Ben Vitrin AI stil asistanıyım. Gardırobundaki parçalarla sana kombin önerebilirim.'
+              : 'Merhaba! Ben Vitrin destek asistanıyım. Kargo takibi, iade, iptal ve müşteri hizmetleri konularında yardımcı olabilirim. İstersen sipariş numaranı da yazabilirsin.'
+        });
+      _suggestions = stylistMode ? _stylistSuggestions : _supportSuggestions;
+    });
+  }
 
   @override
   void dispose() {
@@ -59,14 +91,19 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
               })
           .toList();
 
-      final result = await ApiService.supportChat(
-        message: text,
-        history: history,
-        orderNo: _orderNoController.text,
-      );
+      final activeResult = _stylistMode
+          ? await ApiService.stylistChat(
+              message: text,
+              history: history,
+            )
+          : await ApiService.supportChat(
+              message: text,
+              history: history,
+              orderNo: _orderNoController.text,
+            );
 
-      final reply = (result['reply'] ?? '').toString().trim();
-      final suggestionsRaw = result['suggestions'];
+      final reply = (activeResult['reply'] ?? '').toString().trim();
+      final suggestionsRaw = activeResult['suggestions'];
       final nextSuggestions = suggestionsRaw is List
           ? suggestionsRaw.map((e) => e.toString()).where((e) => e.isNotEmpty).toList()
           : _suggestions;
@@ -113,7 +150,7 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
       backgroundColor: const Color(0xFFF8F4F0),
       appBar: AppBar(
         title: const Text(
-          'AI Destek',
+          'AI Asistan',
           style: TextStyle(color: Color(0xFF2D2D2D), fontWeight: FontWeight.bold),
         ),
         backgroundColor: Colors.white,
@@ -122,6 +159,29 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
       ),
       body: Column(
         children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+            child: Row(
+              children: [
+                Expanded(
+                  child: ChoiceChip(
+                    label: const Text('Destek'),
+                    selected: !_stylistMode,
+                    onSelected: (_) => _switchMode(false),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: ChoiceChip(
+                    label: const Text('AI Stilist'),
+                    selected: _stylistMode,
+                    onSelected: (_) => _switchMode(true),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (!_stylistMode)
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
             child: TextField(
@@ -142,6 +202,17 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
               ),
             ),
           ),
+          if (_stylistMode)
+            const Padding(
+              padding: EdgeInsets.fromLTRB(12, 10, 12, 4),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Stilist modu gardırobundaki ürünlerle kombin önerir.',
+                  style: TextStyle(fontSize: 12, color: Color(0xFF777777)),
+                ),
+              ),
+            ),
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
             child: Align(
@@ -213,7 +284,9 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
                       textInputAction: TextInputAction.send,
                       onSubmitted: (_) => _sendMessage(),
                       decoration: InputDecoration(
-                        hintText: 'Sorunu yaz (kargo, iade, iptal...)',
+                        hintText: _stylistMode
+                            ? 'Mesaj yaz (ör: Bu etekle ne giyebilirim?)'
+                            : 'Sorunu yaz (kargo, iade, iptal...)',
                         filled: true,
                         fillColor: Colors.white,
                         border: OutlineInputBorder(
