@@ -4,9 +4,12 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
-  // Backend sunucumuzun adresi — fiziksel cihazda kendi IP'nle değiştir
-  static const String baseUrl = 'http://10.0.2.2:3000/api'; // Android emülatör
-  // static const String baseUrl = 'http://localhost:3000/api'; // iOS simülatör
+  // Backend sunucu adresi (production için --dart-define ile verilir)
+  // Örnek: --dart-define=API_BASE_URL=https://YOUR-RAILWAY-DOMAIN.up.railway.app/api
+  static const String baseUrl = String.fromEnvironment(
+    'API_BASE_URL',
+    defaultValue: 'http://10.0.2.2:3000/api',
+  );
 
   // ─── Token Yönetimi ──────────────────────────────────────────────────────
 
