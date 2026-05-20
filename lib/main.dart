@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'services/api_service.dart';
 import 'screens/home_screen.dart';
 import 'screens/login_screen.dart';
-import 'screens/register_screen.dart';
 
 void main() {
   runApp(const VitrinApp());
@@ -96,75 +95,6 @@ class _SplashRouterState extends State<SplashRouter> {
       );
     }
 
-    return _isAuthenticated ? const HomeScreen() : const AuthChoiceScreen();
-  }
-}
-
-class AuthChoiceScreen extends StatelessWidget {
-  const AuthChoiceScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8F4F0),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 40),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Spacer(),
-              const Icon(Icons.checkroom, size: 68, color: Color(0xFF2D2D2D)),
-              const SizedBox(height: 14),
-              const Text(
-                'Vitrin',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 32,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF2D2D2D),
-                ),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Devam etmek için giriş yap veya kayıt ol',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Color(0xFF888888)),
-              ),
-              const Spacer(),
-              SizedBox(
-                height: 52,
-                child: ElevatedButton(
-                  onPressed: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const LoginScreen()),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF2D2D2D),
-                    foregroundColor: Colors.white,
-                  ),
-                  child: const Text('Giriş Yap'),
-                ),
-              ),
-              const SizedBox(height: 10),
-              SizedBox(
-                height: 52,
-                child: OutlinedButton(
-                  onPressed: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const RegisterScreen()),
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFF2D2D2D),
-                    side: const BorderSide(color: Color(0xFF2D2D2D)),
-                  ),
-                  child: const Text('Kayıt Ol'),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+    return _isAuthenticated ? const HomeScreen() : const LoginScreen();
   }
 }
