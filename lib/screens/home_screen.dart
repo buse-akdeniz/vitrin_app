@@ -25,6 +25,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Timer? _badgeTimer;
   int _unreadNotificationCount = 0;
   int _activeOrderBadgeCount = 0;
+  Map<String, dynamic> _userProfile = {};
 
   @override
   void initState() {
@@ -95,10 +96,21 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _loadHomeData() async {
     await Future.wait([
+      _loadUserProfile(),
       _loadSosProducts(),
       _loadFollowedSellers(),
       _loadRecommendedProducts(),
     ]);
+  }
+
+  Future<void> _loadUserProfile() async {
+    try {
+      final result = await ApiService.getProfile();
+      if (!mounted) return;
+      setState(() {
+        _userProfile = result['user'] ?? {};
+      });
+    } catch (_) {}
   }
 
   Future<void> _loadSosProducts() async {
@@ -226,9 +238,12 @@ class _HomeScreenState extends State<HomeScreen> {
                         color: Colors.white, size: 42),
                   ),
                   const SizedBox(height: 20),
-                  const Text(
-                    'Hoş geldin! 🎉',
-                    style: TextStyle(
+                  Text(
+                    _userProfile['name'] != null &&
+                            _userProfile['name'].toString().trim().isNotEmpty
+                        ? 'Hoş geldin, ${_userProfile['name']}! 🎉'
+                        : 'Hoş geldin! 🎉',
+                    style: const TextStyle(
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
                         color: Color(0xFF2D2D2D)),
@@ -426,8 +441,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 ),
                               ],
                             ),
-                          );
-                          ),
+                            ));
                         }).toList(),
                       ),
                     ),
