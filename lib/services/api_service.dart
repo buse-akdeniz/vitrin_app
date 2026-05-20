@@ -62,6 +62,14 @@ class ApiService {
     return data;
   }
 
+  static Future<Map<String, dynamic>> verifyToken() async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/auth/verify'),
+      headers: await _authHeaders(),
+    );
+    return jsonDecode(response.body);
+  }
+
   // ─── Profil Görüntüle ────────────────────────────────────────────────────
 
   static Future<Map<String, dynamic>> getProfile() async {

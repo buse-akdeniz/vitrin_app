@@ -37,21 +37,45 @@ class SplashRouter extends StatefulWidget {
 
 class _SplashRouterState extends State<SplashRouter> {
   bool _loading = true;
-  bool _hasToken = false;
+  bool _isAuthenticated = false;
 
   @override
   void initState() {
     super.initState();
-    _checkAuth();
+    _boot();
   }
 
-  Future<void> _checkAuth() async {
+  Future<void> _boot() async {
     final token = await ApiService.getToken();
-    if (!mounted) return;
-    setState(() {
-      _hasToken = token != null && token.trim().isNotEmpty;
-      _loading = false;
-    });
+    if (token == null || token.trim().isEmpty) {
+      if (!mounted) return;
+      setState(() {
+        _isAuthenticated = false;
+        _loading = false;
+      });
+      return;
+    }
+
+    try {
+      final verify = await ApiService.verifyToken();
+      final ok = verify['success'] == true;
+      if (!mounted) return;
+      setState(() {
+        _isAuthenticated = ok;
+        _loading = false;
+      });
+
+      if (!ok) {
+        await ApiService.deleteToken();
+      }
+    } catch (_) {
+      await ApiService.deleteToken();
+      if (!mounted) return;
+      setState(() {
+        _isAuthenticated = false;
+        _loading = false;
+      });
+    }
   }
 
   @override
@@ -60,12 +84,19 @@ class _SplashRouterState extends State<SplashRouter> {
       return const Scaffold(
         backgroundColor: Color(0xFFF8F4F0),
         body: Center(
-          child: CircularProgressIndicator(color: Color(0xFF2D2D2D)),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.checkroom, size: 56, color: Color(0xFF2D2D2D)),
+              SizedBox(height: 12),
+              CircularProgressIndicator(color: Color(0xFF2D2D2D)),
+            ],
+          ),
         ),
       );
     }
 
-    return _hasToken ? const HomeScreen() : const AuthChoiceScreen();
+    return _isAuthenticated ? const HomeScreen() : const AuthChoiceScreen();
   }
 }
 
