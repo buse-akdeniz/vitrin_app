@@ -1,4 +1,4 @@
-# dolap_app
+# vitrin_app
 
 A new Flutter project.
 
