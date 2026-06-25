@@ -33,6 +33,12 @@ migrate_working_dir/
 .pub/
 /build/
 
+# Node
+**/node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
 # Symbolication related
 app.*.symbols
 
