@@ -59,7 +59,7 @@ class _SellerPanelScreenState extends State<SellerPanelScreen> {
                 TextField(controller: price, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Fiyat')),
                 TextField(controller: description, minLines: 2, maxLines: 4, decoration: const InputDecoration(labelText: 'Açıklama')),
                 DropdownButtonFormField<String>(
-                  value: saleStatus,
+                  initialValue: saleStatus,
                   items: const [
                     DropdownMenuItem(value: 'available', child: Text('Satışta')),
                     DropdownMenuItem(value: 'reserved', child: Text('Rezerve')),
@@ -83,7 +83,7 @@ class _SellerPanelScreenState extends State<SellerPanelScreen> {
                   saleStatus: saleStatus,
                 );
                 if (!mounted) return;
-                Navigator.pop(context);
+                Navigator.pop(this.context);
                 _load();
               },
               child: const Text('Kaydet'),
@@ -107,7 +107,7 @@ class _SellerPanelScreenState extends State<SellerPanelScreen> {
             children: [
               TextField(controller: tracking, decoration: const InputDecoration(labelText: 'Takip No')),
               DropdownButtonFormField<String>(
-                value: ['packed', 'shipped', 'in_transit'].contains(status) ? status : 'shipped',
+                initialValue: ['packed', 'shipped', 'in_transit'].contains(status) ? status : 'shipped',
                 items: const [
                   DropdownMenuItem(value: 'packed', child: Text('Hazırlandı')),
                   DropdownMenuItem(value: 'shipped', child: Text('Kargoya Verildi')),
@@ -127,7 +127,7 @@ class _SellerPanelScreenState extends State<SellerPanelScreen> {
                   shipmentStatus: status,
                 );
                 if (!mounted) return;
-                Navigator.pop(context);
+                Navigator.pop(this.context);
                 _load();
               },
               child: const Text('Güncelle'),

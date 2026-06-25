@@ -237,7 +237,7 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
                     children: [
                       Expanded(
                         child: DropdownButtonFormField<String>(
-                          value: _occasion,
+                          initialValue: _occasion,
                           items: _occasionOptions
                               .map(
                                 (o) => DropdownMenuItem(
@@ -268,7 +268,7 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
                       const SizedBox(width: 8),
                       Expanded(
                         child: DropdownButtonFormField<String>(
-                          value: _weather,
+                          initialValue: _weather,
                           items: _weatherOptions
                               .map(
                                 (w) => DropdownMenuItem(

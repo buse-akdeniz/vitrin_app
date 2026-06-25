@@ -1,0 +1,44 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: S3 raw bucket -> Lambda image optimizer event wiring (products/raw/ prefix)
+
+Parameters:
+  RawBucketName:
+    Type: String
+  ProcessedBucketName:
+    Type: String
+  LambdaFunctionArn:
+    Type: String
+
+Resources:
+  RawBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref RawBucketName
+      NotificationConfiguration:
+        LambdaConfigurations:
+          - Event: s3:ObjectCreated:*
+            Function: !Ref LambdaFunctionArn
+            Filter:
+              S3Key:
+                Rules:
+                  - Name: prefix
+                    Value: products/raw/
+
+  ProcessedBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref ProcessedBucketName
+
+  LambdaInvokePermissionForS3:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref LambdaFunctionArn
+      Principal: s3.amazonaws.com
+      SourceArn: !Sub arn:aws:s3:::${RawBucketName}
+
+Outputs:
+  RawBucketOut:
+    Value: !Ref RawBucketName
+  ProcessedBucketOut:
+    Value: !Ref ProcessedBucketName

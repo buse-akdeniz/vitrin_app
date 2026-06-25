@@ -32,6 +32,8 @@ class _AddProductScreenState extends State<AddProductScreen> {
   String _packageSize = 'medium';
   bool _isSos = false;
   bool _isSaving = false;
+  double? _uploadProgress01;
+  String? _uploadStage;
 
   Future<void> _pickImage() async {
     final file = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
@@ -67,50 +69,44 @@ class _AddProductScreenState extends State<AddProductScreen> {
       sosDiscount = discount;
     }
 
-    setState(() => _isSaving = true);
+    setState(() {
+      _isSaving = true;
+      _uploadProgress01 = null;
+      _uploadStage = null;
+    });
     try {
       final parsedPrice =
           double.parse(_priceController.text.trim().replaceAll(',', '.'));
 
-      final result = _pickedImage != null
-          ? await ApiService.createProductWithImage(
-              title: _titleController.text.trim(),
-              price: parsedPrice,
-              imagePath: _pickedImage!.path,
-              category: _categoryController.text.trim(),
-              brand: _brandController.text.trim(),
-              size: _sizeController.text.trim(),
-              fabricType: _fabricTypeController.text.trim(),
-              shoeSize: _shoeSizeController.text.trim(),
-              gender: _gender,
-              condition: _condition,
-              shippingType: _shippingType,
-              packageSize: _packageSize,
-              color: _colorController.text.trim(),
-              description: _descriptionController.text.trim(),
-              isSos: _isSos,
-              sosDiscountPercent: sosDiscount,
-            )
-          : await ApiService.createProduct(
-              title: _titleController.text.trim(),
-              price: parsedPrice,
-              category: _categoryController.text.trim(),
-              brand: _brandController.text.trim(),
-              size: _sizeController.text.trim(),
-              fabricType: _fabricTypeController.text.trim(),
-              shoeSize: _shoeSizeController.text.trim(),
-              gender: _gender,
-              condition: _condition,
-              shippingType: _shippingType,
-              packageSize: _packageSize,
-              color: _colorController.text.trim(),
-              imageUrl: _imageUrlController.text.trim().isNotEmpty
-                  ? _imageUrlController.text.trim()
-                  : '',
-              description: _descriptionController.text.trim(),
-              isSos: _isSos,
-              sosDiscountPercent: sosDiscount,
-            );
+      final result = await ApiService.createProductOptimized(
+        title: _titleController.text.trim(),
+        price: parsedPrice,
+        imagePath: _pickedImage?.path,
+        category: _categoryController.text.trim(),
+        brand: _brandController.text.trim(),
+        size: _sizeController.text.trim(),
+        fabricType: _fabricTypeController.text.trim(),
+        shoeSize: _shoeSizeController.text.trim(),
+        gender: _gender,
+        condition: _condition,
+        shippingType: _shippingType,
+        packageSize: _packageSize,
+        color: _colorController.text.trim(),
+        imageUrl: _imageUrlController.text.trim().isNotEmpty
+            ? _imageUrlController.text.trim()
+            : '',
+        description: _descriptionController.text.trim(),
+        isSos: _isSos,
+        sosDiscountPercent: sosDiscount,
+        onUploadProgress: (p) {
+          if (!mounted) return;
+          setState(() => _uploadProgress01 = p);
+        },
+        onUploadStage: (stage) {
+          if (!mounted) return;
+          setState(() => _uploadStage = stage);
+        },
+      );
 
       if (!mounted) return;
       if (result['success'] == true) {
@@ -209,6 +205,47 @@ class _AddProductScreenState extends State<AddProductScreen> {
           key: _formKey,
           child: Column(
             children: [
+              if (_isSaving && (_uploadStage != null || _uploadProgress01 != null))
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  margin: const EdgeInsets.only(bottom: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFE8E8E8)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _uploadStage ?? 'Yükleniyor…',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF2D2D2D),
+                        ),
+                      ),
+                      if (_uploadProgress01 != null) ...[
+                        const SizedBox(height: 10),
+                        LinearProgressIndicator(
+                          value: _uploadProgress01,
+                          minHeight: 8,
+                          color: const Color(0xFF2D2D2D),
+                          backgroundColor: const Color(0xFFF0F0F0),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          '${((_uploadProgress01 ?? 0) * 100).clamp(0, 100).toStringAsFixed(0)}%',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Color(0xFF666666),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
               TextFormField(
                 controller: _titleController,
                 decoration: _input('Ürün Başlığı *'),
@@ -252,7 +289,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                         Switch(
                           value: _isSos,
                           onChanged: (val) => setState(() => _isSos = val),
-                          activeColor: Colors.red.shade700,
+                          activeThumbColor: Colors.red.shade700,
                         ),
                       ],
                     ),
@@ -323,7 +360,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                   decoration: _input('Renk')),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
-                value: _gender,
+                initialValue: _gender,
                 items: const [
                   DropdownMenuItem(value: 'Kadın', child: Text('Kadın')),
                   DropdownMenuItem(value: 'Erkek', child: Text('Erkek')),
@@ -335,7 +372,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
-                value: _condition,
+                initialValue: _condition,
                 items: const [
                   DropdownMenuItem(
                       value: 'Yeni Etiketli', child: Text('Yeni')),
@@ -348,7 +385,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
-                value: _shippingType,
+                initialValue: _shippingType,
                 items: const [
                   DropdownMenuItem(value: 'seller', child: Text('Satıcı')),
                   DropdownMenuItem(value: 'buyer', child: Text('Alıcı')),
@@ -403,7 +440,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
-                value: _packageSize,
+                initialValue: _packageSize,
                 items: const [
                   DropdownMenuItem(value: 'small', child: Text('Küçük Paket')),
                   DropdownMenuItem(value: 'medium', child: Text('Orta Paket')),

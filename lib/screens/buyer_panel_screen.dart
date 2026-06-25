@@ -80,7 +80,7 @@ class _BuyerPanelScreenState extends State<BuyerPanelScreen> {
                               onPressed: () async {
                                 final r = await ApiService.requestCancel((order['id'] ?? 0) as int);
                                 if (!mounted) return;
-                                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text((r['message'] ?? 'İşlem tamamlandı').toString())));
+                                ScaffoldMessenger.of(this.context).showSnackBar(SnackBar(content: Text((r['message'] ?? 'İşlem tamamlandı').toString())));
                                 _load();
                               },
                               child: const Text('İptal Talebi'),
@@ -89,7 +89,7 @@ class _BuyerPanelScreenState extends State<BuyerPanelScreen> {
                               onPressed: () async {
                                 final r = await ApiService.requestReturn((order['id'] ?? 0) as int);
                                 if (!mounted) return;
-                                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text((r['message'] ?? 'İşlem tamamlandı').toString())));
+                                ScaffoldMessenger.of(this.context).showSnackBar(SnackBar(content: Text((r['message'] ?? 'İşlem tamamlandı').toString())));
                                 _load();
                               },
                               child: const Text('İade Talebi'),

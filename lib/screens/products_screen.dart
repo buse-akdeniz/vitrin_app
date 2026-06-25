@@ -18,13 +18,19 @@ class ProductsScreen extends StatefulWidget {
 
 class _ProductsScreenState extends State<ProductsScreen> {
   bool _isLoading = true;
+  bool _isLoadingMore = false;
   List<dynamic> _products = [];
   Map<String, dynamic> _facets = {};
   final Set<int> _favoriteProductIds = {};
   int _offerAlertCount = 0;
+  bool _hasMore = true;
+  String? _nextCursor;
+  int _page = 1;
+  static const int _pageSize = 20;
   String? _error;
 
   final TextEditingController _quickSearchController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
   Map<String, dynamic> _filters = {'smartMode': '1', 'sosOnly': '0'};
 
   @override
@@ -35,37 +41,72 @@ class _ProductsScreenState extends State<ProductsScreen> {
       _filters['q'] = initial;
       _quickSearchController.text = initial;
     }
-    _loadProducts();
+    _scrollController.addListener(_onScroll);
+    _loadProducts(reset: true);
     _loadOfferBadge();
   }
 
   @override
   void dispose() {
     _quickSearchController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
-  Future<void> _loadProducts() async {
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
+  void _onScroll() {
+    if (!_scrollController.hasClients || _isLoading || _isLoadingMore || !_hasMore) {
+      return;
+    }
+    final pos = _scrollController.position;
+    if (pos.pixels >= pos.maxScrollExtent - 220) {
+      _loadProducts();
+    }
+  }
+
+  Future<void> _loadProducts({bool reset = false}) async {
+    if (!reset && (_isLoadingMore || _isLoading)) return;
+
+    if (reset) {
+      setState(() {
+        _isLoading = true;
+        _error = null;
+        _products = [];
+        _facets = {};
+        _hasMore = true;
+        _nextCursor = null;
+        _page = 1;
+      });
+    } else {
+      if (!_hasMore) return;
+      setState(() => _isLoadingMore = true);
+    }
 
     try {
-      final result = await ApiService.getProducts(filters: _filters);
+      final result = await ApiService.getProductsFeed(
+        filters: _filters,
+        page: _page,
+        limit: _pageSize,
+        cursor: _nextCursor,
+      );
       final favoritesResult = await ApiService.getFavorites();
+
       if (result['success'] == true) {
+        final loadedProducts = (result['products'] as List?) ?? [];
         final favoritesList = (favoritesResult['products'] as List?) ?? [];
         setState(() {
-          _products = (result['products'] as List?) ?? [];
-          _facets = (result['facets'] as Map<String, dynamic>?) ?? {};
+          _products = reset ? loadedProducts : [..._products, ...loadedProducts];
+          _facets = (result['facets'] as Map<String, dynamic>?) ?? _facets;
+          _nextCursor = (result['nextCursor'] as String?)?.trim().isNotEmpty == true
+              ? (result['nextCursor'] as String)
+              : null;
+          _hasMore = result['hasMore'] == true;
+          _page += 1;
           _favoriteProductIds
             ..clear()
             ..addAll(
               favoritesList
                   .map((e) => (e as Map<String, dynamic>)['id'])
-                  .where((id) => id is int)
-                  .cast<int>(),
+                  .whereType<int>(),
             );
         });
       } else {
@@ -74,8 +115,39 @@ class _ProductsScreenState extends State<ProductsScreen> {
     } catch (_) {
       setState(() => _error = 'Sunucuya bağlanılamadı.');
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _isLoadingMore = false;
+        });
+      }
     }
+  }
+
+  String _resolveProductImage(Map<String, dynamic> item) {
+    final direct = [
+      item['image_cdn_url'],
+      item['image_url'],
+      item['imageUrl'],
+      item['thumbnail_url'],
+      item['thumbnailUrl'],
+    ];
+
+    for (final v in direct) {
+      final text = (v ?? '').toString().trim();
+      if (text.isNotEmpty) return text;
+    }
+
+    final variants = item['image_variants'] ?? item['imageVariants'];
+    if (variants is Map<String, dynamic>) {
+      final preferred = [variants['medium'], variants['small'], variants['large'], variants['original']];
+      for (final v in preferred) {
+        final text = (v ?? '').toString().trim();
+        if (text.isNotEmpty) return text;
+      }
+    }
+
+    return '';
   }
 
   Future<void> _loadOfferBadge() async {
@@ -158,7 +230,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
                   amount: amount,
                 );
                 if (!mounted) return;
-                Navigator.pop(context);
+                Navigator.pop(this.context);
                 ScaffoldMessenger.of(this.context).showSnackBar(
                   SnackBar(content: Text((result['message'] ?? 'İşlem tamamlandı').toString())),
                 );
@@ -215,7 +287,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
                     TextField(controller: colorController, decoration: const InputDecoration(labelText: 'Renk')),
                     TextField(controller: descriptionController, decoration: const InputDecoration(labelText: 'Açıklama içinde ara')),
                     DropdownButtonFormField<String>(
-                      value: gender.isEmpty ? null : gender,
+                      initialValue: gender.isEmpty ? null : gender,
                       decoration: const InputDecoration(labelText: 'Cinsiyet'),
                       items: const [
                         DropdownMenuItem(value: 'Kadın', child: Text('Kadın')),
@@ -226,7 +298,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
                       onChanged: (v) => setModalState(() => gender = v ?? ''),
                     ),
                     DropdownButtonFormField<String>(
-                      value: condition.isEmpty ? null : condition,
+                      initialValue: condition.isEmpty ? null : condition,
                       decoration: const InputDecoration(labelText: 'Kullanım Durumu'),
                       items: const [
                         DropdownMenuItem(value: 'Yeni Etiketli', child: Text('Yeni Etiketli')),
@@ -237,7 +309,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
                       onChanged: (v) => setModalState(() => condition = v ?? ''),
                     ),
                     DropdownButtonFormField<String>(
-                      value: shippingType.isEmpty ? null : shippingType,
+                      initialValue: shippingType.isEmpty ? null : shippingType,
                       decoration: const InputDecoration(labelText: 'Kargo Tipi'),
                       items: const [
                         DropdownMenuItem(value: 'buyer', child: Text('Kargo Alıcıya Ait')),
@@ -246,7 +318,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
                       onChanged: (v) => setModalState(() => shippingType = v ?? ''),
                     ),
                     DropdownButtonFormField<String>(
-                      value: packageSize.isEmpty ? null : packageSize,
+                      initialValue: packageSize.isEmpty ? null : packageSize,
                       decoration: const InputDecoration(labelText: 'Paket Boyutu'),
                       items: const [
                         DropdownMenuItem(value: 'small', child: Text('Küçük Paket')),
@@ -274,7 +346,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
                             onPressed: () {
                               setState(() => _filters = {'smartMode': '1'});
                               Navigator.pop(context);
-                              _loadProducts();
+                              _loadProducts(reset: true);
                             },
                             child: const Text('Temizle'),
                           ),
@@ -303,7 +375,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
                                 };
                               });
                               Navigator.pop(context);
-                              _loadProducts();
+                              _loadProducts(reset: true);
                             },
                             child: const Text('Uygula'),
                           ),
@@ -339,7 +411,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
                 label: Text(value),
                 onPressed: () {
                   setState(() => _filters[queryKey] = value);
-                  _loadProducts();
+                  _loadProducts(reset: true);
                 },
               );
             },
@@ -421,20 +493,21 @@ class _ProductsScreenState extends State<ProductsScreen> {
             context,
             MaterialPageRoute(builder: (_) => const AddProductScreen()),
           );
-          if (created == true) _loadProducts();
+          if (created == true) _loadProducts(reset: true);
         },
         icon: const Icon(Icons.add),
         label: const Text('Ürün Ekle'),
       ),
       body: RefreshIndicator(
-        onRefresh: _loadProducts,
+        onRefresh: () => _loadProducts(reset: true),
         child: _isLoading
             ? const Center(child: CircularProgressIndicator(color: Color(0xFF2D2D2D)))
             : _error != null
                 ? ListView(children: [const SizedBox(height: 120), Center(child: Text(_error!, style: const TextStyle(color: Colors.redAccent)))])
                 : ListView.separated(
+                    controller: _scrollController,
                     padding: const EdgeInsets.all(16),
-                    itemCount: _products.length + 1,
+                    itemCount: _products.length + 2,
                     separatorBuilder: (_, __) => const SizedBox(height: 12),
                     itemBuilder: (context, index) {
                       if (index == 0) {
@@ -453,7 +526,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
                                   }
                                   _filters['smartMode'] = '1';
                                 });
-                                _loadProducts();
+                                _loadProducts(reset: true);
                               },
                               decoration: InputDecoration(
                                 hintText: 'Hızlı bul: marka, kumaş, renk...',
@@ -472,6 +545,31 @@ class _ProductsScreenState extends State<ProductsScreen> {
                             _facetChips('Trend Renkler', 'colors', 'color'),
                           ],
                         );
+                      }
+
+                      if (index == _products.length + 1) {
+                        if (_isLoadingMore) {
+                          return const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 8),
+                            child: Center(
+                              child: CircularProgressIndicator(
+                                color: Color(0xFF2D2D2D),
+                              ),
+                            ),
+                          );
+                        }
+                        if (!_hasMore && _products.isNotEmpty) {
+                          return const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 4),
+                            child: Center(
+                              child: Text(
+                                'Tüm ilanlar yüklendi',
+                                style: TextStyle(color: Color(0xFF888888)),
+                              ),
+                            ),
+                          );
+                        }
+                        return const SizedBox.shrink();
                       }
 
                       final item = _products[index - 1] as Map<String, dynamic>;
@@ -509,7 +607,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
                                       borderRadius: BorderRadius.circular(12),
                                     ),
                                     child: ProductImage(
-                                      imageUrl: (item['image_url'] ?? '').toString(),
+                                      imageUrl: _resolveProductImage(item),
                                       width: 62,
                                       height: 62,
                                       borderRadius: BorderRadius.circular(12),
@@ -584,12 +682,12 @@ class _ProductsScreenState extends State<ProductsScreen> {
                                       isFavorite ? Icons.favorite : Icons.favorite_border,
                                       color: isFavorite ? Colors.red : const Color(0xFF2D2D2D),
                                     ),
-                                  );
-                                  ),
+                                    ),
                                 ],
-                              )
+                                ),
                             ],
                           ),
+                        ),
                         ),
                       );
                     },

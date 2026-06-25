@@ -1,0 +1,9 @@
+{
+  "name": "vitrin-app-monorepo",
+  "private": true,
+  "scripts": {
+    "start": "cd backend && npm start",
+    "build": "cd backend && npm ci --omit=dev",
+    "postinstall": "cd backend && npm ci --omit=dev"
+  }
+}

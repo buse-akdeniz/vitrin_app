@@ -21,6 +21,37 @@ class _HomeScreenState extends State<HomeScreen> {
   List<dynamic> _sosProducts = [];
   List<dynamic> _followedSellers = [];
   List<dynamic> _recommendedProducts = [];
+
+  String _resolveProductImage(Map<String, dynamic> item) {
+    final direct = [
+      item['image_cdn_url'],
+      item['image_url'],
+      item['imageUrl'],
+      item['thumbnail_url'],
+      item['thumbnailUrl'],
+    ];
+
+    for (final v in direct) {
+      final text = (v ?? '').toString().trim();
+      if (text.isNotEmpty) return text;
+    }
+
+    final variants = item['image_variants'] ?? item['imageVariants'];
+    if (variants is Map<String, dynamic>) {
+      final preferred = [
+        variants['medium'],
+        variants['small'],
+        variants['large'],
+        variants['original'],
+      ];
+      for (final v in preferred) {
+        final text = (v ?? '').toString().trim();
+        if (text.isNotEmpty) return text;
+      }
+    }
+
+    return '';
+  }
   final TextEditingController _searchController = TextEditingController();
   Timer? _badgeTimer;
   int _unreadNotificationCount = 0;
@@ -373,7 +404,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                             top: Radius.circular(12)),
                                       ),
                                       child: ProductImage(
-                                        imageUrl: (p['image_url'] ?? '').toString(),
+                                        imageUrl: _resolveProductImage(p),
                                         width: 160,
                                         height: 120,
                                         borderRadius: const BorderRadius.vertical(
@@ -536,7 +567,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             child: Row(
                               children: [
                                 ProductImage(
-                                  imageUrl: (p['image_url'] ?? '').toString(),
+                                  imageUrl: _resolveProductImage(p),
                                   width: 58,
                                   height: 58,
                                   borderRadius: BorderRadius.circular(10),

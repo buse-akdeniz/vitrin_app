@@ -11,6 +11,109 @@ class ApiService {
     defaultValue: 'http://10.0.2.2:3000/api',
   );
 
+  static const String uploadPresignPath = String.fromEnvironment(
+    'UPLOAD_PRESIGN_PATH',
+    defaultValue: '/uploads/presign',
+  );
+
+  static const String uploadCompletePath = String.fromEnvironment(
+    'UPLOAD_COMPLETE_PATH',
+    defaultValue: '/uploads/complete',
+  );
+
+  static const int uploadRequestTimeoutSeconds = int.fromEnvironment(
+    'UPLOAD_REQUEST_TIMEOUT_SECONDS',
+    defaultValue: 25,
+  );
+
+  static const int uploadRetryMaxAttempts = int.fromEnvironment(
+    'UPLOAD_RETRY_MAX_ATTEMPTS',
+    defaultValue: 3,
+  );
+
+  static const int uploadRetryBaseDelayMs = int.fromEnvironment(
+    'UPLOAD_RETRY_BASE_DELAY_MS',
+    defaultValue: 450,
+  );
+
+  static Duration _retryDelay(int attempt) {
+    // attempt: 1..N
+    final ms = uploadRetryBaseDelayMs * (1 << (attempt - 1));
+    return Duration(milliseconds: ms.clamp(200, 4000));
+  }
+
+  static Future<T> _withRetries<T>(
+    Future<T> Function() operation, {
+    int attempts = uploadRetryMaxAttempts,
+    bool Function(Object error)? shouldRetry,
+  }) async {
+    Object? lastError;
+    for (var i = 1; i <= attempts; i++) {
+      try {
+        return await operation();
+      } catch (e) {
+        lastError = e;
+        final retryable = shouldRetry?.call(e) ?? true;
+        if (!retryable || i == attempts) rethrow;
+        await Future.delayed(_retryDelay(i));
+      }
+    }
+    throw lastError ?? Exception('unknown_error');
+  }
+
+  static bool _isRetryableNetworkError(Object error) {
+    return error is SocketException ||
+        error is HttpException ||
+        error is HandshakeException ||
+        error is FormatException;
+  }
+
+  static Future<bool> _isUrlReady(String url) async {
+    final client = http.Client();
+    try {
+      final res = await client
+          .head(Uri.parse(url))
+          .timeout(const Duration(seconds: 6));
+      return res.statusCode >= 200 && res.statusCode < 300;
+    } catch (_) {
+      return false;
+    } finally {
+      client.close();
+    }
+  }
+
+  static Future<String> _waitForProcessedImage({
+    required Map<String, dynamic> completeResponse,
+    void Function(String stage)? onStage,
+    int maxWaitSeconds = 25,
+  }) async {
+    // Backend returns imageVariants.* that may not be ready immediately (async pipeline).
+    final variants = completeResponse['imageVariants'];
+    String? medium;
+    if (variants is Map) {
+      medium = (variants['medium'] ?? '').toString().trim();
+    }
+    medium ??= (completeResponse['imageUrl'] ?? '').toString().trim();
+    if (medium.isEmpty) {
+      return '';
+    }
+
+    final deadline = DateTime.now().add(Duration(seconds: maxWaitSeconds));
+    var attempt = 0;
+    while (DateTime.now().isBefore(deadline)) {
+      attempt += 1;
+      onStage?.call('Görsel işleniyor…');
+      final ok = await _isUrlReady(medium);
+      if (ok) return medium;
+      // small backoff
+      final delayMs = (350 * (1 << (attempt - 1))).clamp(350, 2500);
+      await Future.delayed(Duration(milliseconds: delayMs));
+    }
+
+    // Not ready yet; return best guess so UI can still try to load.
+    return medium;
+  }
+
   // ─── Token Yönetimi ──────────────────────────────────────────────────────
 
   static Future<void> saveToken(String token) async {
@@ -118,6 +221,50 @@ class ApiService {
     return jsonDecode(response.body);
   }
 
+  static Future<Map<String, dynamic>> getProductsFeed({
+    Map<String, dynamic>? filters,
+    int page = 1,
+    int limit = 20,
+    String? cursor,
+  }) async {
+    final query = <String, String>{
+      'page': page.toString(),
+      'limit': limit.toString(),
+      if (cursor != null && cursor.trim().isNotEmpty) 'cursor': cursor.trim(),
+    };
+
+    if (filters != null) {
+      filters.forEach((key, value) {
+        if (value == null) return;
+        final text = value.toString().trim();
+        if (text.isNotEmpty) query[key] = text;
+      });
+    }
+
+    Future<Map<String, dynamic>> parseAndNormalize(Uri uri) async {
+      final response = await http.get(
+        uri,
+        headers: {'Content-Type': 'application/json'},
+      );
+      final raw = jsonDecode(response.body);
+      return _normalizeProductsFeed(raw);
+    }
+
+    try {
+      return await parseAndNormalize(
+        Uri.parse('$baseUrl/products/feed').replace(
+          queryParameters: query,
+        ),
+      );
+    } catch (_) {
+      return await parseAndNormalize(
+        Uri.parse('$baseUrl/products').replace(
+          queryParameters: query,
+        ),
+      );
+    }
+  }
+
   // ─── Ürün Ekleme ─────────────────────────────────────────────────────────
 
   static Future<Map<String, dynamic>> createProduct({
@@ -215,6 +362,362 @@ class ApiService {
     final streamed = await request.send();
     final response = await http.Response.fromStream(streamed);
     return jsonDecode(response.body);
+  }
+
+  static Future<Map<String, dynamic>> createProductOptimized({
+    required String title,
+    required double price,
+    String? imagePath,
+    String? category,
+    String? brand,
+    String? size,
+    String? fabricType,
+    String? shoeSize,
+    String? gender,
+    String? condition,
+    String? shippingType,
+    String? packageSize,
+    String? color,
+    String? imageUrl,
+    String? description,
+    bool isSos = false,
+    int sosDiscountPercent = 0,
+    void Function(double progress01)? onUploadProgress,
+    void Function(String stage)? onUploadStage,
+  }) async {
+    String resolvedImageUrl = imageUrl?.trim() ?? '';
+
+    if (imagePath != null && imagePath.trim().isNotEmpty) {
+      try {
+        onUploadStage?.call('Yükleme bileti alınıyor…');
+        final uploadedUrl = await _uploadImageViaPresignedUrl(
+          imagePath.trim(),
+          onProgress: onUploadProgress,
+          onStage: onUploadStage,
+        );
+        if (uploadedUrl != null && uploadedUrl.trim().isNotEmpty) {
+          resolvedImageUrl = uploadedUrl.trim();
+        }
+      } catch (_) {
+        // Fallback akışı aşağıda devam eder.
+      }
+
+      if (resolvedImageUrl.isNotEmpty) {
+        return createProduct(
+          title: title,
+          price: price,
+          category: category,
+          brand: brand,
+          size: size,
+          fabricType: fabricType,
+          shoeSize: shoeSize,
+          gender: gender,
+          condition: condition,
+          shippingType: shippingType,
+          packageSize: packageSize,
+          color: color,
+          imageUrl: resolvedImageUrl,
+          description: description,
+          isSos: isSos,
+          sosDiscountPercent: sosDiscountPercent,
+        );
+      }
+
+      onUploadStage?.call('Yükleme (fallback) başlatılıyor…');
+      return createProductWithImage(
+        title: title,
+        price: price,
+        imagePath: imagePath,
+        category: category,
+        brand: brand,
+        size: size,
+        fabricType: fabricType,
+        shoeSize: shoeSize,
+        gender: gender,
+        condition: condition,
+        shippingType: shippingType,
+        packageSize: packageSize,
+        color: color,
+        description: description,
+        isSos: isSos,
+        sosDiscountPercent: sosDiscountPercent,
+      );
+    }
+
+    return createProduct(
+      title: title,
+      price: price,
+      category: category,
+      brand: brand,
+      size: size,
+      fabricType: fabricType,
+      shoeSize: shoeSize,
+      gender: gender,
+      condition: condition,
+      shippingType: shippingType,
+      packageSize: packageSize,
+      color: color,
+      imageUrl: resolvedImageUrl,
+      description: description,
+      isSos: isSos,
+      sosDiscountPercent: sosDiscountPercent,
+    );
+  }
+
+  static Future<String?> _uploadImageViaPresignedUrl(
+    String imagePath, {
+    void Function(double progress01)? onProgress,
+    void Function(String stage)? onStage,
+  }) async {
+    final file = File(imagePath);
+    if (!await file.exists()) return null;
+
+    final fileName = imagePath.split('/').last;
+    final contentType = _guessContentType(imagePath);
+    final fileSize = await file.length();
+
+    final ticket = await _withRetries(
+      () => _requestUploadTicket(
+        fileName: fileName,
+        contentType: contentType,
+        fileSize: fileSize,
+      ),
+      shouldRetry: _isRetryableNetworkError,
+    );
+
+    if (ticket == null) return null;
+
+    final uploadUrl = (ticket['uploadUrl'] ?? ticket['url'] ?? '').toString();
+    if (uploadUrl.isEmpty) return null;
+
+    final rawHeaders = ticket['headers'];
+    final uploadHeaders = <String, String>{
+      'Content-Type': contentType,
+      if (rawHeaders is Map)
+        ...rawHeaders.map(
+          (key, value) => MapEntry(key.toString(), value.toString()),
+        ),
+    };
+
+    // Büyük dosyaları RAM'e almamak için stream upload.
+    final client = http.Client();
+    try {
+      onStage?.call('Görsel yükleniyor…');
+      onProgress?.call(0);
+
+      Future<http.Response> uploadOnce() async {
+        final request = http.StreamedRequest('PUT', Uri.parse(uploadUrl));
+        request.headers.addAll(uploadHeaders);
+        request.contentLength = fileSize;
+
+        var sent = 0;
+        final stream = file.openRead();
+        stream.listen(
+          (chunk) {
+            sent += chunk.length;
+            if (fileSize > 0) {
+              final p = (sent / fileSize).clamp(0.0, 1.0);
+              onProgress?.call(p);
+            }
+            request.sink.add(chunk);
+          },
+          onDone: request.sink.close,
+          onError: (Object error, StackTrace st) => request.sink.addError(error, st),
+          cancelOnError: true,
+        );
+
+        final streamed = await client
+            .send(request)
+            .timeout(const Duration(seconds: uploadRequestTimeoutSeconds));
+        return http.Response.fromStream(streamed);
+      }
+
+      final uploadResponse = await _withRetries(
+        () => uploadOnce(),
+        shouldRetry: (e) => _isRetryableNetworkError(e),
+      );
+
+      if (uploadResponse.statusCode < 200 || uploadResponse.statusCode >= 300) {
+        return null;
+      }
+
+      onStage?.call('Yükleme tamamlandı, işleniyor…');
+      final complete = await _withRetries(
+        () => _completeUpload(ticket),
+        shouldRetry: _isRetryableNetworkError,
+      );
+      final completedUrl = await _waitForProcessedImage(
+        completeResponse: complete ?? const <String, dynamic>{},
+        onStage: onStage,
+      );
+
+      if (completedUrl.isNotEmpty) return completedUrl;
+
+      final fallbackUrl = (ticket['publicUrl'] ??
+              ticket['cdnUrl'] ??
+              ticket['fileUrl'] ??
+              ticket['imageUrl'] ??
+              ticket['optimizedUrl'] ??
+              ticket['assetUrl'] ??
+              '')
+          .toString();
+      return fallbackUrl.isEmpty ? null : fallbackUrl;
+    } finally {
+      client.close();
+    }
+  }
+
+  static Future<Map<String, dynamic>?> _requestUploadTicket({
+    required String fileName,
+    required String contentType,
+    required int fileSize,
+  }) async {
+    final payload = {
+      'fileName': fileName,
+      'contentType': contentType,
+      'fileSize': fileSize,
+      'folder': 'products',
+    };
+
+    final headers = await _authHeaders();
+    final endpoints = <String>[
+      '$baseUrl$uploadPresignPath',
+      '$baseUrl/images/presign',
+      '$baseUrl/products/images/presign',
+    ];
+
+    for (final endpoint in endpoints) {
+      try {
+        final response = await http.post(
+          Uri.parse(endpoint),
+          headers: headers,
+          body: jsonEncode(payload),
+        ).timeout(const Duration(seconds: uploadRequestTimeoutSeconds));
+        if (response.statusCode < 200 || response.statusCode >= 300) {
+          continue;
+        }
+        final data = jsonDecode(response.body);
+        final candidate = _extractUploadTicket(data);
+        if (candidate != null) return candidate;
+      } catch (_) {
+        // bir sonraki endpoint denenecek
+      }
+    }
+
+    return null;
+  }
+
+  static Map<String, dynamic>? _extractUploadTicket(dynamic data) {
+    if (data is! Map<String, dynamic>) return null;
+    final candidates = <Map<String, dynamic>>[
+      data,
+      if (data['data'] is Map<String, dynamic>) data['data'] as Map<String, dynamic>,
+      if (data['upload'] is Map<String, dynamic>) data['upload'] as Map<String, dynamic>,
+      if (data['ticket'] is Map<String, dynamic>) data['ticket'] as Map<String, dynamic>,
+    ];
+
+    for (final c in candidates) {
+      final url = (c['uploadUrl'] ?? c['url'] ?? '').toString();
+      if (url.isNotEmpty) return c;
+    }
+    return null;
+  }
+
+  static Future<Map<String, dynamic>?> _completeUpload(
+      Map<String, dynamic> ticket) async {
+    final key = (ticket['key'] ?? ticket['objectKey'] ?? '').toString();
+    if (key.isEmpty) return null;
+
+    final headers = await _authHeaders();
+    final payload = jsonEncode({'key': key, 'folder': 'products'});
+
+    final endpoints = <String>[
+      '$baseUrl$uploadCompletePath',
+      '$baseUrl/images/complete',
+      '$baseUrl/products/images/complete',
+    ];
+
+    for (final endpoint in endpoints) {
+      try {
+        final response = await http.post(
+          Uri.parse(endpoint),
+          headers: headers,
+          body: payload,
+        ).timeout(const Duration(seconds: uploadRequestTimeoutSeconds));
+        if (response.statusCode < 200 || response.statusCode >= 300) {
+          continue;
+        }
+        final data = jsonDecode(response.body);
+        if (data is Map<String, dynamic>) {
+          if (data['data'] is Map<String, dynamic>) {
+            return data['data'] as Map<String, dynamic>;
+          }
+          return data;
+        }
+      } catch (_) {
+        // bir sonraki endpoint denenecek
+      }
+    }
+    return null;
+  }
+
+  static String _guessContentType(String filePath) {
+    final ext = filePath.split('.').last.toLowerCase();
+    switch (ext) {
+      case 'png':
+        return 'image/png';
+      case 'webp':
+        return 'image/webp';
+      case 'heic':
+      case 'heif':
+        return 'image/heic';
+      case 'gif':
+        return 'image/gif';
+      case 'jpg':
+      case 'jpeg':
+      default:
+        return 'image/jpeg';
+    }
+  }
+
+  static Map<String, dynamic> _normalizeProductsFeed(
+      Map<String, dynamic> raw) {
+    final data = raw['data'] is Map<String, dynamic>
+        ? raw['data'] as Map<String, dynamic>
+        : raw;
+
+    final products = (data['products'] as List?) ??
+        (data['items'] as List?) ??
+        (raw['products'] as List?) ??
+        const [];
+
+    final facets = (data['facets'] as Map<String, dynamic>?) ??
+        (raw['facets'] as Map<String, dynamic>?) ??
+        <String, dynamic>{};
+
+    final pageInfo = (data['pageInfo'] as Map<String, dynamic>?) ??
+        (raw['pageInfo'] as Map<String, dynamic>?) ??
+        <String, dynamic>{};
+
+    final nextCursor = (pageInfo['nextCursor'] ??
+            data['nextCursor'] ??
+            raw['nextCursor'] ??
+            '')
+        .toString();
+
+    final hasMore = pageInfo['hasMore'] == true ||
+        data['hasMore'] == true ||
+        raw['hasMore'] == true ||
+        nextCursor.isNotEmpty;
+
+    return {
+      'success': raw['success'] != false,
+      'products': products,
+      'facets': facets,
+      'nextCursor': nextCursor,
+      'hasMore': hasMore,
+      'total': pageInfo['total'] ?? data['total'] ?? raw['total'],
+    };
   }
 
   static Future<Map<String, dynamic>> getPriceInsights({

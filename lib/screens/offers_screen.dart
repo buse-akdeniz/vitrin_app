@@ -96,7 +96,7 @@ class _OffersScreenState extends State<OffersScreen>
                   counterAmount: amount,
                 );
                 if (!mounted) return;
-                Navigator.pop(context);
+                Navigator.pop(this.context);
                 ScaffoldMessenger.of(this.context).showSnackBar(
                   SnackBar(content: Text((result['message'] ?? 'İşlem tamamlandı').toString())),
                 );

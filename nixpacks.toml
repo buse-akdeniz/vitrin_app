@@ -1,0 +1,8 @@
+[phases.setup]
+# Keep default Node provider detection
+
+[phases.install]
+cmds = ["cd backend && npm ci --omit=dev"]
+
+[start]
+cmd = "cd backend && npm start"

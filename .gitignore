@@ -5,9 +5,11 @@
 *.swp
 .DS_Store
 .atom/
+.build/
 .buildlog/
 .history
 .svn/
+.swiftpm/
 migrate_working_dir/
 
 # IntelliJ related
@@ -69,3 +71,14 @@ android/keystore.properties
 
 # Optional local config folder for private docs/files
 private/
+
+# Local Lambda packaging artifacts
+.lambda_build/
+infra/aws/lambda/VitrinImageOptimizer.zip
+
+# Local one-off infra verification outputs / artifacts
+cf_*.json
+e2e_test.jpg
+
+# Local editor settings (optional)
+.vscode/

@@ -1,0 +1,32 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ReadOriginalObjects",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject"
+      ],
+      "Resource": "arn:aws:s3:::vitrin-original-photos-707605821946-eu-central-1-an/*"
+    },
+    {
+      "Sid": "WriteProcessedObjects",
+      "Effect": "Allow",
+      "Action": [
+        "s3:PutObject"
+      ],
+      "Resource": "arn:aws:s3:::vitrin-optimized-photos-707605821946-eu-central-1-an/*"
+    },
+    {
+      "Sid": "ListBuckets",
+      "Effect": "Allow",
+      "Action": [
+        "s3:ListBucket"
+      ],
+      "Resource": [
+        "arn:aws:s3:::vitrin-original-photos-707605821946-eu-central-1-an",
+        "arn:aws:s3:::vitrin-optimized-photos-707605821946-eu-central-1-an"
+      ]
+    }
+  ]
+}

@@ -23,6 +23,37 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   Map<String, dynamic>? _insights;
   bool _loadingInsights = true;
 
+  String _resolveProductImage(Map<String, dynamic> item) {
+    final direct = [
+      item['image_cdn_url'],
+      item['image_url'],
+      item['imageUrl'],
+      item['thumbnail_url'],
+      item['thumbnailUrl'],
+    ];
+
+    for (final v in direct) {
+      final text = (v ?? '').toString().trim();
+      if (text.isNotEmpty) return text;
+    }
+
+    final variants = item['image_variants'] ?? item['imageVariants'];
+    if (variants is Map<String, dynamic>) {
+      final preferred = [
+        variants['large'],
+        variants['medium'],
+        variants['small'],
+        variants['original'],
+      ];
+      for (final v in preferred) {
+        final text = (v ?? '').toString().trim();
+        if (text.isNotEmpty) return text;
+      }
+    }
+
+    return '';
+  }
+
   @override
   void initState() {
     super.initState();
@@ -121,7 +152,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                   amount: amount,
                 );
                 if (!mounted) return;
-                Navigator.pop(context);
+                Navigator.pop(this.context);
                 ScaffoldMessenger.of(this.context).showSnackBar(
                   SnackBar(content: Text((result['message'] ?? 'İşlem tamamlandı').toString())),
                 );
@@ -169,7 +200,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
         padding: const EdgeInsets.all(14),
         children: [
           ProductImage(
-            imageUrl: (p['image_url'] ?? '').toString(),
+            imageUrl: _resolveProductImage(p),
             width: double.infinity,
             height: 240,
             borderRadius: BorderRadius.circular(16),

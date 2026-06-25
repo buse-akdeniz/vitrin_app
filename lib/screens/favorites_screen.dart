@@ -14,6 +14,37 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
   bool _loading = true;
   List<dynamic> _products = [];
 
+  String _resolveProductImage(Map<String, dynamic> item) {
+    final direct = [
+      item['image_cdn_url'],
+      item['image_url'],
+      item['imageUrl'],
+      item['thumbnail_url'],
+      item['thumbnailUrl'],
+    ];
+
+    for (final v in direct) {
+      final text = (v ?? '').toString().trim();
+      if (text.isNotEmpty) return text;
+    }
+
+    final variants = item['image_variants'] ?? item['imageVariants'];
+    if (variants is Map<String, dynamic>) {
+      final preferred = [
+        variants['medium'],
+        variants['small'],
+        variants['large'],
+        variants['original'],
+      ];
+      for (final v in preferred) {
+        final text = (v ?? '').toString().trim();
+        if (text.isNotEmpty) return text;
+      }
+    }
+
+    return '';
+  }
+
   @override
   void initState() {
     super.initState();
@@ -75,7 +106,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                       ),
                     ),
                     leading: ProductImage(
-                      imageUrl: (p['image_url'] ?? '').toString(),
+                      imageUrl: _resolveProductImage(p),
                       width: 48,
                       height: 48,
                       borderRadius: BorderRadius.circular(8),
