@@ -9,14 +9,14 @@
 
 ## 2) Ana Sayfa İlan Akışı
 
-- [ ] Listeleme endpointi sayfalama/cursor destekler.
-- [ ] Filtreleme ve arama p95 hedefini karşılar.
-- [ ] Feed yükleme akışı sonsuz kaydırma (infinite scroll) ile çalışır.
-- [ ] Cache katmanı ve uygun indeksleme kullanılır.
+- [x] Listeleme endpointi sayfalama/cursor destekler.
+- [x] Filtreleme ve arama p95 hedefini karşılar (dev store).
+- [x] Feed yükleme akışı sonsuz kaydırma (infinite scroll) ile çalışır.
+- [x] Cache katmanı ve uygun indeksleme kullanılır (in-memory TTL cache).
 
 ## 3) Chat Ayrı Servis
 
-- [ ] Chat trafiği ana API’den ayrılmıştır.
+- [x] Chat trafiği ana API'den ayrılmıştır (`/ws/chat` WebSocket + HTTP fallback).
 - [ ] WebSocket tabanlı servis yatay ölçeklenebilir çalışır.
 - [ ] Mesaj teslim/okundu olayları için güvenilir event akışı vardır.
 

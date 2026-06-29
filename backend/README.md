@@ -1,70 +1,54 @@
-# Vitrin Upload API (S3 Presign + Complete)
+# Vitrin Backend API
 
-Bu servis, Flutter istemcisinin doğrudan S3'e görsel yükleyebilmesi için gerekli endpointleri sağlar.
+Node.js servisi: marketplace API, S3 presigned upload, AI chat (HTTP + WebSocket).
 
-## Endpointler
-
-- `POST /api/uploads/presign`
-- `POST /api/uploads/complete`
-
-Davranış:
-
-- `folder` sadece `products` kabul eder
-- `complete` için `key` formatı doğrulanır (`products/raw/YYYY/MM/<uuid>.<ext>`)
-- endpointler rate-limit ile korunur
-
-## Kurulum
-
-1. `cp .env.example .env`
-2. `npm install`
-3. `npm run dev`
-
-## Railway Deploy (Monorepo)
-
-Bu repoda backend klasörü `backend/` altındadır. Railway'de yanlışlıkla farklı entrypoint (`index.js`) çalışmaması için kökte:
-
-- [railway.json](../railway.json)
-- [nixpacks.toml](../nixpacks.toml)
-
-dosyaları eklidir.
-
-Zorunlu env örneği:
-
-- [backend/.env.railway.example](.env.railway.example)
-
-En az şu değişkenler set edilmelidir:
-
-- `AWS_REGION`
-- `S3_RAW_BUCKET`
-- `CDN_BASE_URL`
-- `UPLOAD_API_TOKEN`
-
-## İstek Örnekleri
-
-### Presign
+## Yerel geliştirme
 
 ```bash
-curl -X POST http://localhost:3000/api/uploads/presign \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "fileName":"dress.jpg",
-    "contentType":"image/jpeg",
-    "fileSize":1234567,
-    "folder":"products"
-  }'
+cd backend
+cp .env.example .env
+npm install
+npm run dev
 ```
 
-### Complete
+- API: `http://localhost:3000/api`
+- Health: `http://localhost:3000/health`
+- Chat WS: `ws://localhost:3000/ws/chat`
+
+## Ana endpoint grupları
+
+| Grup | Örnek |
+|------|--------|
+| Auth | `POST /api/register`, `POST /api/login` |
+| Ürünler | `GET /api/products/feed`, `POST /api/products` |
+| Upload | `POST /api/uploads/presign`, `POST /api/uploads/complete` |
+| Teklif/Sipariş | `POST /api/offers`, `GET /api/buyer/orders` |
+| Chat | `POST /api/support/chat`, WebSocket `/ws/chat` |
+
+## Railway deploy
+
+Kök dizinde `railway.json` + `nixpacks.toml` mevcuttur.
+
+Detaylı adımlar: [docs/deploy_railway.md](../docs/deploy_railway.md)
+
+Env şablonu: [.env.railway.example](.env.railway.example)
+
+Deploy sonrası smoke test:
 
 ```bash
-curl -X POST http://localhost:3000/api/uploads/complete \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "key":"products/raw/2026/05/uuid.jpg",
-    "folder":"products"
-  }'
+API_BASE_URL=https://YOUR-DOMAIN.up.railway.app/api ./scripts/railway_smoke.sh
 ```
 
-## Not
+## Flutter prod build
 
-Bu servis örnek amaçlıdır. Üretimde auth, rate-limit, logging, metrics ve IAM hardening zorunludur.
+```bash
+./scripts/flutter_prod_build.sh apk config/flutter.prod.env
+```
+
+Şablon: [config/flutter.prod.example.env](../config/flutter.prod.example.env)
+
+## Notlar
+
+- Upload auth: giriş yapmış kullanıcı token'ı veya `UPLOAD_API_TOKEN` kabul edilir.
+- Prod'da `AUTH_SALT` ve `UPLOAD_API_TOKEN` mutlaka set edilmelidir.
+- JSON store için Railway Volume önerilir (`DATA_DIR=/app/backend/data`).

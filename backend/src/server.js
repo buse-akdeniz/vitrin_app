@@ -1,14 +1,24 @@
 import 'dotenv/config';
+import http from 'http';
 import express from 'express';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
 import { randomUUID } from 'crypto';
 import { S3Client, HeadObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import { z } from 'zod';
+import { loadDb, getUserIdFromToken } from './store.js';
+import { registerMarketplaceRoutes } from './marketplace.js';
+import {
+  SupportChatSchema,
+  StylistChatSchema,
+  handleSupportChat,
+  handleStylistChat,
+} from './aiChat.js';
+import { attachChatWebSocket, WS_PATH } from './chatWs.js';
 
 const app = express();
 app.disable('x-powered-by');
+app.set('trust proxy', 1);
 
 const {
   PORT = '3000',
@@ -105,13 +115,27 @@ const aiLimiter = rateLimit({
 });
 
 function requireUploadAuth(req, res, next) {
-  if (!UPLOAD_API_TOKEN) return next();
   const auth = req.headers.authorization || '';
   const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
-  if (token !== UPLOAD_API_TOKEN) {
-    return res.status(401).json({ success: false, message: 'Unauthorized' });
+  if (UPLOAD_API_TOKEN && token === UPLOAD_API_TOKEN) return next();
+  if (token && getUserIdFromToken(token)) {
+    req.userId = getUserIdFromToken(token);
+    return next();
   }
-  return next();
+  if (!UPLOAD_API_TOKEN) return next();
+  return res.status(401).json({ success: false, message: 'Unauthorized' });
+}
+
+function requireChatAuth(req, res, next) {
+  const auth = req.headers.authorization || '';
+  const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+  if (UPLOAD_API_TOKEN && token === UPLOAD_API_TOKEN) return next();
+  if (token && getUserIdFromToken(token)) {
+    req.userId = getUserIdFromToken(token);
+    return next();
+  }
+  if (!UPLOAD_API_TOKEN) return next();
+  return res.status(401).json({ success: false, message: 'Unauthorized' });
 }
 
 function withRequestId(req, res, next) {
@@ -185,6 +209,47 @@ function toProcessedKey(rawKey, variant, ext = 'webp') {
   return `${replaced.replace(/\.[^.]+$/, '')}.${ext}`;
 }
 
+function clampInt(value, { min, max, fallback }) {
+  const n = Number.parseInt(String(value ?? ''), 10);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(max, Math.max(min, n));
+}
+
+// ------------------------
+// In-memory feed cache
+// ------------------------
+const FEED_CACHE_TTL_MS = 5_000;
+const feedCache = new Map();
+
+function feedCacheKey(req) {
+  const q = String(req.query.q ?? '').trim().toLowerCase();
+  const sosOnly = String(req.query.sosOnly ?? '').trim();
+  const smartMode = String(req.query.smartMode ?? '').trim();
+  const limit = clampInt(req.query.limit, { min: 1, max: 50, fallback: 20 });
+  const cursor = String(req.query.cursor ?? '').trim();
+  return `q=${q}|sos=${sosOnly}|smart=${smartMode}|limit=${limit}|cursor=${cursor}`;
+}
+
+function invalidateFeedCache() {
+  feedCache.clear();
+}
+
+function getCachedFeed(key) {
+  const hit = feedCache.get(key);
+  if (!hit) return null;
+  if (Date.now() > hit.expiresAt) {
+    feedCache.delete(key);
+    return null;
+  }
+  return hit.value;
+}
+
+function setCachedFeed(key, value) {
+  feedCache.set(key, { value, expiresAt: Date.now() + FEED_CACHE_TTL_MS });
+}
+
+loadDb();
+
 app.get('/health', (_, res) => {
   res.json({
     ok: true,
@@ -205,168 +270,33 @@ app.get('/health', (_, res) => {
         origins: corsOrigins ?? [],
       },
       authEnabled: Boolean(UPLOAD_API_TOKEN),
+      marketplace: true,
+      dataDir: process.env.DATA_DIR || 'backend/data',
       ai: {
         provider: AI_PROVIDER,
         model: AI_MODEL,
         enabled: Boolean((AI_PROVIDER === 'openai' && OPENAI_API_KEY) || (AI_PROVIDER === 'anthropic' && ANTHROPIC_API_KEY)),
+        websocket: WS_PATH,
       },
     },
   });
 });
 
-const ChatRequestSchema = z.object({
-  message: z.string().trim().min(1).max(1500),
-  history: z
-    .array(
-      z.object({
-        role: z.enum(['user', 'assistant', 'system']).default('user'),
-        text: z.string().max(4000).default(''),
-      }),
-    )
-    .max(30)
-    .default([]),
+registerMarketplaceRoutes(app, {
+  invalidateFeedCache,
+  feedCacheKey,
+  getCachedFeed,
+  setCachedFeed,
 });
 
-const SupportChatSchema = ChatRequestSchema.extend({
-  orderNo: z.string().trim().max(64).optional(),
-});
-
-const StylistChatSchema = ChatRequestSchema.extend({
-  occasion: z.string().trim().max(64).optional(),
-  weather: z.string().trim().max(64).optional(),
-});
-
-function normalizeHistory(history) {
-  const safe = [];
-  for (const item of history || []) {
-    const role = item?.role === 'assistant' || item?.role === 'system' ? item.role : 'user';
-    const text = String(item?.text || '').trim();
-    if (!text) continue;
-    safe.push({ role, text: text.slice(0, 4000) });
-  }
-  return safe.slice(-30);
-}
-
-function suggestionsFromReply(reply) {
-  // Lightweight heuristics (keep Flutter UI populated).
-  const base = [
-    'Bir örnek daha sorabilir miyim?',
-    'Bunu adım adım anlatır mısın?',
-    'Alternatif çözüm öner',
-    'Özetle ve aksiyon listesi çıkar',
-  ];
-  if (!reply || reply.length < 10) return base;
-  return base;
-}
-
-async function callOpenAI({ system, messages, timeoutMs }) {
-  if (!OPENAI_API_KEY) throw new Error('OPENAI_API_KEY_missing');
-  const controller = new AbortController();
-  const t = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const res = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      signal: controller.signal,
-      headers: {
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: AI_MODEL,
-        temperature: 0.6,
-        messages: [
-          { role: 'system', content: system },
-          ...messages.map((m) => ({ role: m.role, content: m.text })),
-        ],
-      }),
-    });
-    if (!res.ok) {
-      const text = await res.text().catch(() => '');
-      throw new Error(`openai_error_${res.status}:${text.slice(0, 300)}`);
-    }
-    const data = await res.json();
-    const reply = data?.choices?.[0]?.message?.content ?? '';
-    return String(reply).trim();
-  } finally {
-    clearTimeout(t);
-  }
-}
-
-async function callAnthropic({ system, messages, timeoutMs }) {
-  if (!ANTHROPIC_API_KEY) throw new Error('ANTHROPIC_API_KEY_missing');
-  const controller = new AbortController();
-  const t = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      signal: controller.signal,
-      headers: {
-        'x-api-key': ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: AI_MODEL,
-        max_tokens: 600,
-        temperature: 0.6,
-        system,
-        messages: messages
-          .filter((m) => m.role !== 'system')
-          .map((m) => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: m.text })),
-      }),
-    });
-    if (!res.ok) {
-      const text = await res.text().catch(() => '');
-      throw new Error(`anthropic_error_${res.status}:${text.slice(0, 300)}`);
-    }
-    const data = await res.json();
-    const parts = data?.content ?? [];
-    const text = Array.isArray(parts)
-      ? parts.filter((p) => p?.type === 'text').map((p) => p.text).join('\n')
-      : '';
-    return String(text).trim();
-  } finally {
-    clearTimeout(t);
-  }
-}
-
-async function callAI({ system, messages, timeoutMs }) {
-  const provider = String(AI_PROVIDER || 'openai').toLowerCase();
-  if (provider === 'anthropic') {
-    return await callAnthropic({ system, messages, timeoutMs });
-  }
-  return await callOpenAI({ system, messages, timeoutMs });
-}
-
-app.post('/api/support/chat', requireUploadAuth, aiLimiter, async (req, res) => {
+app.post('/api/support/chat', requireChatAuth, aiLimiter, async (req, res) => {
   try {
     const parsed = SupportChatSchema.safeParse(req.body || {});
     if (!parsed.success) {
       return res.status(400).json({ success: false, message: 'Geçersiz istek', requestId: req.requestId });
     }
-    const { message, history, orderNo } = parsed.data;
-    const normalizedHistory = normalizeHistory(history);
-    const system = [
-      'Sen Vitrin uygulamasının Türkçe müşteri destek asistanısın.',
-      'Kısa, net ve çözüm odaklı cevap ver.',
-      'Gizli bilgi isteme (kart, şifre, SMS kodu).',
-      'Eğer bilgi eksikse en fazla 2 net soru sor.',
-      orderNo ? `Sipariş No: ${orderNo}` : null,
-    ]
-      .filter(Boolean)
-      .join('\n');
-
-    const reply = await callAI({
-      system,
-      messages: [...normalizedHistory, { role: 'user', text: message }],
-      timeoutMs: Number(AI_TIMEOUT_MS) || 20000,
-    });
-
-    return res.json({
-      success: true,
-      reply: reply || 'Şu an yanıt üretilemedi. Lütfen tekrar deneyin.',
-      suggestions: suggestionsFromReply(reply),
-    });
+    const result = await handleSupportChat(parsed.data);
+    return res.json({ success: true, ...result });
   } catch (error) {
     return res.status(500).json({
       success: false,
@@ -377,36 +307,14 @@ app.post('/api/support/chat', requireUploadAuth, aiLimiter, async (req, res) => 
   }
 });
 
-app.post('/api/stylist/chat', requireUploadAuth, aiLimiter, async (req, res) => {
+app.post('/api/stylist/chat', requireChatAuth, aiLimiter, async (req, res) => {
   try {
     const parsed = StylistChatSchema.safeParse(req.body || {});
     if (!parsed.success) {
       return res.status(400).json({ success: false, message: 'Geçersiz istek', requestId: req.requestId });
     }
-    const { message, history, occasion, weather } = parsed.data;
-    const normalizedHistory = normalizeHistory(history);
-    const system = [
-      'Sen Vitrin uygulamasının Türkçe AI stil asistanısın.',
-      'Kısa, uygulanabilir kombin önerileri ver.',
-      '2-4 alternatif üret; her birinde üst/alt/ayakkabı/aksesuar öner.',
-      'Eğer bilgi eksikse 1-2 soru sor.',
-      occasion ? `Ortam: ${occasion}` : null,
-      weather ? `Hava: ${weather}` : null,
-    ]
-      .filter(Boolean)
-      .join('\n');
-
-    const reply = await callAI({
-      system,
-      messages: [...normalizedHistory, { role: 'user', text: message }],
-      timeoutMs: Number(AI_TIMEOUT_MS) || 20000,
-    });
-
-    return res.json({
-      success: true,
-      reply: reply || 'Şu an yanıt üretilemedi. Lütfen tekrar deneyin.',
-      suggestions: suggestionsFromReply(reply),
-    });
+    const result = await handleStylistChat(parsed.data);
+    return res.json({ success: true, ...result });
   } catch (error) {
     return res.status(500).json({
       success: false,
@@ -534,34 +442,14 @@ app.post('/api/uploads/complete', requireUploadAuth, uploadLimiter, async (req, 
   }
 });
 
-app.post('/api/products/mock-response', (req, res) => {
-  const base = (CDN_BASE_URL || 'https://cdn.example.com').replace(/\/$/, '');
-  return res.json({
-    success: true,
-    product: {
-      id: 1,
-      title: 'Örnek Ürün',
-      image_url: `${base}/products/medium/2026/05/example.webp`,
-      image_variants: {
-        small: `${base}/products/small/2026/05/example.webp`,
-        medium: `${base}/products/medium/2026/05/example.webp`,
-        large: `${base}/products/large/2026/05/example.webp`,
-        original: `${base}/products/original/2026/05/example.jpg`,
-      },
-      imageVariants: {
-        small: `${base}/products/small/2026/05/example.webp`,
-        medium: `${base}/products/medium/2026/05/example.webp`,
-        large: `${base}/products/large/2026/05/example.webp`,
-        original: `${base}/products/original/2026/05/example.jpg`,
-      },
-      image_status: 'ready',
-    },
-  });
-});
-
 app.use((_, res) => res.status(404).json({ success: false, message: 'Not Found' }));
 
-app.listen(Number(PORT), () => {
+const server = http.createServer(app);
+attachChatWebSocket(server);
+
+server.listen(Number(PORT), () => {
   // eslint-disable-next-line no-console
-  console.log(`Upload API ready on :${PORT} (cors=${corsOrigins ? 'restricted' : 'any'})`);
+  console.log(
+    `API ready on :${PORT} (cors=${corsOrigins ? 'restricted' : 'any'}, chat ws=${WS_PATH})`,
+  );
 });

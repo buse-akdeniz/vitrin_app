@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../services/api_service.dart';
+import '../services/chat_service.dart';
 
 class SupportChatScreen extends StatefulWidget {
   const SupportChatScreen({super.key});
@@ -110,13 +110,15 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
           .toList();
 
       final activeResult = _stylistMode
-          ? await ApiService.stylistChat(
+          ? await ChatService.sendChat(
+              mode: 'stylist',
               message: text,
               history: history,
               occasion: _occasion,
               weather: _weather,
             )
-          : await ApiService.supportChat(
+          : await ChatService.sendChat(
+              mode: 'support',
               message: text,
               history: history,
               orderNo: _orderNoController.text,

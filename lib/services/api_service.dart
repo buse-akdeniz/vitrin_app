@@ -741,7 +741,7 @@ class ApiService {
     return jsonDecode(response.body);
   }
 
-  // ─── Destek Asistanı (AI Chat) ───────────────────────────────────────────
+  // ─── Destek Asistanı (AI Chat — HTTP) ────────────────────────────────────
 
   static Future<Map<String, dynamic>> supportChat({
     required String message,

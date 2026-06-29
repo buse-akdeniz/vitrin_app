@@ -56,6 +56,9 @@ app.*.map.json
 # Environment files
 .env
 .env.*
+!.env.example
+!**/.env.example
+!**/.env.railway.example
 
 # API keys / service accounts / credentials
 *credentials*.json
@@ -85,6 +88,9 @@ infra/aws/lambda/VitrinImageOptimizer.zip
 # Local one-off infra verification outputs / artifacts
 cf_*.json
 e2e_test.jpg
+
+# Local JSON datastore (dev)
+backend/data/db.json
 
 # Local editor settings (optional)
 .vscode/
