@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import 'comments_screen.dart';
+import '../utils/product_image_url.dart';
 import '../widgets/product_image.dart';
 
 class ProductDetailScreen extends StatefulWidget {
@@ -22,6 +23,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   bool _isFollowingSeller = false;
   Map<String, dynamic>? _insights;
   bool _loadingInsights = true;
+  List<Map<String, dynamic>> _outfitRecommendations = const [];
+  bool _loadingOutfitRecommendations = true;
 
   String _resolveProductImage(Map<String, dynamic> item) {
     final direct = [
@@ -60,6 +63,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     _isFavorite = widget.initiallyFavorite;
     _loadInsights();
     _loadFollowStatus();
+    _loadOutfitRecommendations();
   }
 
   Future<void> _loadFollowStatus() async {
@@ -104,6 +108,28 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
       // sessiz
     } finally {
       if (mounted) setState(() => _loadingInsights = false);
+    }
+  }
+
+  Future<void> _loadOutfitRecommendations() async {
+    final productId = (widget.product['id'] ?? 0) as int;
+    if (productId <= 0) {
+      if (mounted) setState(() => _loadingOutfitRecommendations = false);
+      return;
+    }
+
+    try {
+      final result = await ApiService.getOutfitRecommendations(productId: productId);
+      final items = (result['recommendations'] as List? ?? const [])
+          .whereType<Map>()
+          .map((item) => item.map((key, value) => MapEntry(key.toString(), value)))
+          .toList();
+      if (!mounted) return;
+      setState(() => _outfitRecommendations = items);
+    } catch (_) {
+      // sessiz
+    } finally {
+      if (mounted) setState(() => _loadingOutfitRecommendations = false);
     }
   }
 
@@ -242,6 +268,54 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
               border: Border.all(color: const Color(0xFFE8E8E8)),
             ),
             child: Column(
+              if (_loadingOutfitRecommendations || _outfitRecommendations.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFE8E8E8)),
+                  ),
+                  child: _loadingOutfitRecommendations
+                      ? const SizedBox(
+                          height: 72,
+                          child: Center(
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Color(0xFF2D2D2D),
+                            ),
+                          ),
+                        )
+                      : Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Kombini Tamamla',
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(height: 4),
+                            const Text(
+                              'Bu parçaya uyacak öneriler',
+                              style: TextStyle(fontSize: 12, color: Color(0xFF666666)),
+                            ),
+                            const SizedBox(height: 10),
+                            SizedBox(
+                              height: 208,
+                              child: ListView.separated(
+                                scrollDirection: Axis.horizontal,
+                                itemCount: _outfitRecommendations.length,
+                                separatorBuilder: (_, __) => const SizedBox(width: 10),
+                                itemBuilder: (context, index) {
+                                  final item = _outfitRecommendations[index];
+                                  return _outfitCard(item);
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                ),
+              ],
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text('Ürün Açıklaması',
@@ -340,6 +414,80 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
         border: Border.all(color: const Color(0xFFE8E8E8)),
       ),
       child: Text(text, style: const TextStyle(fontSize: 12)),
+    );
+  }
+
+  Widget _outfitCard(Map<String, dynamic> item) {
+    final title = (item['title'] ?? '').toString();
+    final brand = (item['brand'] ?? '').toString();
+    final price = (item['price'] ?? '').toString();
+    final imageUrl = _resolveProductImage(item);
+    final isUrgent = item['is_urgent_active'] == true;
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(14),
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => ProductDetailScreen(product: item),
+          ),
+        );
+      },
+      child: SizedBox(
+        width: 142,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Stack(
+              children: [
+                ProductImage(
+                  imageUrl: imageUrl,
+                  width: 142,
+                  height: 142,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                if (isUrgent)
+                  Positioned(
+                    top: 8,
+                    left: 8,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.shade700,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: const Text(
+                        'Acil',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              brand.isNotEmpty ? '$brand • $title' : title,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              '₺$price',
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF2D2D2D),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

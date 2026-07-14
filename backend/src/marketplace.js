@@ -11,6 +11,7 @@ import {
   formatProductForApi,
   getBuyerOrderBadges,
   getBuyerOrders,
+  getCommissionQuote,
   getComments,
   getFavoriteProductIds,
   getFollowedSellers,
@@ -22,6 +23,7 @@ import {
   getProductById,
   getProductsByIds,
   getReceivedOffers,
+  getOutfitRecommendations,
   getSellerOrders,
   getSellerPanelStats,
   getSellerProducts,
@@ -65,9 +67,14 @@ const ProductSchema = z.object({
   packageSize: z.string().max(50).optional(),
   color: z.string().max(50).optional(),
   imageUrl: z.string().max(2000).optional(),
+  imageVariants: z.record(z.string().max(2000)).optional(),
   description: z.string().max(4000).optional(),
   isSos: z.boolean().optional(),
   sosDiscountPercent: z.coerce.number().int().min(0).max(99).optional(),
+  urgentSale: z.boolean().optional(),
+  urgentHours: z.coerce.number().int().min(1).max(72).optional(),
+  launchBoost: z.boolean().optional(),
+  launchBoostHours: z.coerce.number().int().min(1).max(168).optional(),
 });
 
 const OfferCreateSchema = z.object({
@@ -78,6 +85,11 @@ const OfferCreateSchema = z.object({
 const OfferRespondSchema = z.object({
   action: z.enum(['accept', 'reject', 'counter']),
   counterAmount: z.coerce.number().positive().optional(),
+});
+
+const FeeQuoteSchema = z.object({
+  amount: z.coerce.number().positive().max(1_000_000),
+  shippingType: z.string().max(50).optional(),
 });
 
 function clampInt(value, { min, max, fallback }) {
@@ -209,8 +221,41 @@ export function registerMarketplaceRoutes(app, cacheApi) {
     res.json({ success: true, products });
   });
 
+  app.get('/api/fees/quote', (req, res) => {
+    const parsed = FeeQuoteSchema.safeParse(req.query || {});
+    if (!parsed.success) {
+      return res.status(400).json({ success: false, message: 'Geçersiz ücret sorgusu' });
+    }
+    return res.json(getCommissionQuote(parsed.data));
+  });
+
   app.get('/api/products/feed', feedHandler);
   app.get('/api/products', feedHandler);
+
+  app.get('/api/products/:productId', (req, res) => {
+    const productId = Number(req.params.productId);
+    if (!Number.isFinite(productId) || productId <= 0) {
+      return res.status(400).json({ success: false, message: 'Geçersiz ürün' });
+    }
+    const product = getProductById(productId);
+    if (!product) {
+      return res.status(404).json({ success: false, message: 'Ürün bulunamadı' });
+    }
+    return res.json({ success: true, product: formatProductForApi(product) });
+  });
+
+  app.get('/api/products/:productId/outfit-recommendations', (req, res) => {
+    const productId = Number(req.params.productId);
+    if (!Number.isFinite(productId) || productId <= 0) {
+      return res.status(400).json({ success: false, message: 'Geçersiz ürün' });
+    }
+    const limit = clampInt(req.query.limit, { min: 1, max: 20, fallback: 6 });
+    const result = getOutfitRecommendations(productId, { limit });
+    if (!result) {
+      return res.status(404).json({ success: false, message: 'Ürün bulunamadı' });
+    }
+    return res.json(result);
+  });
 
   app.post('/api/products', authMiddleware, (req, res) => {
     const parsed = ProductSchema.safeParse(req.body || {});
@@ -385,6 +430,10 @@ export function registerMarketplaceRoutes(app, cacheApi) {
       shippingType: req.body?.shippingType,
       packageSize: req.body?.packageSize,
       saleStatus: req.body?.saleStatus,
+      urgentSale: req.body?.urgentSale,
+      urgentHours: req.body?.urgentHours,
+        launchBoost: req.body?.launchBoost,
+        launchBoostHours: req.body?.launchBoostHours,
     });
     if (!product) return res.status(404).json({ success: false, message: 'Ürün bulunamadı' });
     invalidateFeedCache();

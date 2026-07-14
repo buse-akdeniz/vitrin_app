@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import '../services/api_service.dart';
@@ -31,6 +32,10 @@ class _AddProductScreenState extends State<AddProductScreen> {
   String _shippingType = 'seller';
   String _packageSize = 'medium';
   bool _isSos = false;
+  bool _isUrgentSale = false;
+  bool _isLaunchBoost = true;
+  int _urgentHours = 24;
+  int _launchBoostHours = 72;
   bool _isSaving = false;
   double? _uploadProgress01;
   String? _uploadStage;
@@ -48,6 +53,70 @@ class _AddProductScreenState extends State<AddProductScreen> {
   }
   bool _isLoadingInsights = false;
   Map<String, dynamic>? _priceInsights;
+  Timer? _feeQuoteDebounce;
+  bool _isLoadingFeeQuote = false;
+  Map<String, dynamic>? _feeQuote;
+  String? _feeQuoteError;
+
+  @override
+  void initState() {
+    super.initState();
+    _priceController.addListener(_scheduleFeeQuote);
+  }
+
+  void _scheduleFeeQuote() {
+    _feeQuoteDebounce?.cancel();
+    final amount = double.tryParse(_priceController.text.trim().replaceAll(',', '.'));
+    if (amount == null || amount <= 0) {
+      if (mounted) {
+        setState(() {
+          _feeQuote = null;
+          _feeQuoteError = null;
+          _isLoadingFeeQuote = false;
+        });
+      }
+      return;
+    }
+
+    _feeQuoteDebounce = Timer(const Duration(milliseconds: 450), () async {
+      if (!mounted) return;
+      setState(() {
+        _isLoadingFeeQuote = true;
+        _feeQuoteError = null;
+      });
+      try {
+        final result = await ApiService.getFeeQuote(
+          amount: amount,
+          shippingType: _shippingType,
+        );
+        if (!mounted) return;
+        if (result['success'] == true) {
+          setState(() {
+            _feeQuote = result;
+          });
+        } else {
+          setState(() {
+            _feeQuote = null;
+            _feeQuoteError = (result['message'] ?? 'Net kazanç hesaplanamadı').toString();
+          });
+        }
+      } catch (_) {
+        if (!mounted) return;
+        setState(() {
+          _feeQuote = null;
+          _feeQuoteError = 'Net kazanç hesaplanamadı';
+        });
+      } finally {
+        if (mounted) setState(() => _isLoadingFeeQuote = false);
+      }
+    });
+  }
+
+  String _money(dynamic value) {
+    final n = value is num ? value.toDouble() : double.tryParse('$value');
+    if (n == null) return '-';
+    return n.toStringAsFixed(2).replaceAll('.', ',');
+  }
 
   Future<void> _saveProduct() async {
     if (!_formKey.currentState!.validate()) return;
@@ -98,6 +167,10 @@ class _AddProductScreenState extends State<AddProductScreen> {
         description: _descriptionController.text.trim(),
         isSos: _isSos,
         sosDiscountPercent: sosDiscount,
+        urgentSale: _isUrgentSale,
+        urgentHours: _isUrgentSale ? _urgentHours : null,
+        launchBoost: _isLaunchBoost,
+        launchBoostHours: _isLaunchBoost ? _launchBoostHours : null,
         onUploadProgress: (p) {
           if (!mounted) return;
           setState(() => _uploadProgress01 = p);
@@ -163,6 +236,8 @@ class _AddProductScreenState extends State<AddProductScreen> {
 
   @override
   void dispose() {
+    _feeQuoteDebounce?.cancel();
+    _priceController.removeListener(_scheduleFeeQuote);
     _titleController.dispose();
     _priceController.dispose();
     _categoryController.dispose();
@@ -258,6 +333,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                 keyboardType:
                     const TextInputType.numberWithOptions(decimal: true),
                 decoration: _input('Fiyat (₺) *'),
+                onChanged: (_) => _scheduleFeeQuote(),
                 validator: (v) {
                   if (v == null || v.trim().isEmpty) {
                     return 'Fiyat zorunlu';
@@ -319,6 +395,110 @@ class _AddProductScreenState extends State<AddProductScreen> {
                         style: TextStyle(
                           fontSize: 12,
                           color: Colors.red.shade700,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.orange.shade200),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.bolt, color: Colors.orange.shade800, size: 20),
+                        const SizedBox(width: 8),
+                        const Text(
+                          'Acil Satış',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        const Spacer(),
+                        Switch(
+                          value: _isUrgentSale,
+                          onChanged: (val) => setState(() => _isUrgentSale = val),
+                          activeThumbColor: Colors.orange.shade800,
+                        ),
+                      ],
+                    ),
+                    if (_isUrgentSale) ...[
+                      const SizedBox(height: 8),
+                      DropdownButtonFormField<int>(
+                        initialValue: _urgentHours,
+                        decoration: _input('Acil Süre'),
+                        items: const [
+                          DropdownMenuItem(value: 24, child: Text('24 Saat')),
+                          DropdownMenuItem(value: 48, child: Text('48 Saat')),
+                          DropdownMenuItem(value: 72, child: Text('72 Saat')),
+                        ],
+                        onChanged: (v) => setState(() => _urgentHours = v ?? 24),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        '⚡ İlanın $_urgentHours saat boyunca öne çıkarılır.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.orange.shade800,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.blue.shade200),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.rocket_launch, color: Colors.blue.shade800, size: 20),
+                        const SizedBox(width: 8),
+                        const Text(
+                          'Launch Boost',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        const Spacer(),
+                        Switch(
+                          value: _isLaunchBoost,
+                          onChanged: (val) => setState(() => _isLaunchBoost = val),
+                          activeThumbColor: Colors.blue.shade800,
+                        ),
+                      ],
+                    ),
+                    if (_isLaunchBoost) ...[
+                      const SizedBox(height: 8),
+                      DropdownButtonFormField<int>(
+                        initialValue: _launchBoostHours,
+                        decoration: _input('Boost Süresi'),
+                        items: const [
+                          DropdownMenuItem(value: 24, child: Text('24 Saat')),
+                          DropdownMenuItem(value: 72, child: Text('72 Saat')),
+                          DropdownMenuItem(value: 168, child: Text('7 Gün')),
+                        ],
+                        onChanged: (v) => setState(() => _launchBoostHours = v ?? 72),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        '🚀 Yeni ilan ilk günlerde görünürlük kazanır.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.blue.shade800,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
@@ -390,9 +570,53 @@ class _AddProductScreenState extends State<AddProductScreen> {
                   DropdownMenuItem(value: 'seller', child: Text('Satıcı')),
                   DropdownMenuItem(value: 'buyer', child: Text('Alıcı')),
                 ],
-                onChanged: (v) => setState(() => _shippingType = v ?? 'seller'),
+                onChanged: (v) {
+                  setState(() => _shippingType = v ?? 'seller');
+                  _scheduleFeeQuote();
+                },
                 decoration: _input('Kargo'),
               ),
+              if (_isLoadingFeeQuote || _feeQuote != null || _feeQuoteError != null) ...[
+                const SizedBox(height: 10),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFE8E8E8)),
+                  ),
+                  child: _isLoadingFeeQuote
+                      ? const SizedBox(
+                          height: 36,
+                          child: Center(
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        )
+                      : _feeQuoteError != null
+                          ? Text(
+                              _feeQuoteError!,
+                              style: const TextStyle(color: Colors.redAccent),
+                            )
+                          : Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Net Kazanç Tahmini',
+                                  style: TextStyle(fontWeight: FontWeight.bold),
+                                ),
+                                const SizedBox(height: 6),
+                                Text('Komisyon: ₺${_money(_feeQuote?['commission'])}'),
+                                Text('Ödeme Kesintisi: ₺${_money(_feeQuote?['paymentFee'])}'),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Eline Geçecek: ₺${_money(_feeQuote?['estimatedPayout'])}',
+                                  style: const TextStyle(fontWeight: FontWeight.w700),
+                                ),
+                              ],
+                            ),
+                ),
+              ],
               const SizedBox(height: 12),
               TextFormField(
                   controller: _imageUrlController,

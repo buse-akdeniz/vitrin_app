@@ -281,9 +281,14 @@ class ApiService {
     String? packageSize,
     String? color,
     String? imageUrl,
+    Map<String, dynamic>? imageVariants,
     String? description,
     bool isSos = false,
     int sosDiscountPercent = 0,
+    bool urgentSale = false,
+    int? urgentHours,
+    bool launchBoost = false,
+    int? launchBoostHours,
   }) async {
     final response = await http.post(
       Uri.parse('$baseUrl/products'),
@@ -302,9 +307,17 @@ class ApiService {
         'packageSize': packageSize ?? 'medium',
         'color': color ?? '',
         'imageUrl': imageUrl ?? '',
+        if (imageVariants != null && imageVariants.isNotEmpty)
+          'imageVariants': imageVariants,
         'description': description ?? '',
         'isSos': isSos,
         'sosDiscountPercent': sosDiscountPercent,
+        'urgentSale': urgentSale,
+        if (urgentSale && urgentHours != null && urgentHours > 0)
+          'urgentHours': urgentHours,
+        'launchBoost': launchBoost,
+        if (launchBoost && launchBoostHours != null && launchBoostHours > 0)
+          'launchBoostHours': launchBoostHours,
       }),
     );
     return jsonDecode(response.body);
@@ -327,6 +340,10 @@ class ApiService {
     String? description,
     bool isSos = false,
     int sosDiscountPercent = 0,
+    bool urgentSale = false,
+    int? urgentHours,
+    bool launchBoost = false,
+    int? launchBoostHours,
   }) async {
     final token = await getToken();
 
@@ -354,6 +371,14 @@ class ApiService {
     request.fields['description'] = description ?? '';
     request.fields['isSos'] = isSos ? 'true' : 'false';
     request.fields['sosDiscountPercent'] = sosDiscountPercent.toString();
+    request.fields['urgentSale'] = urgentSale ? 'true' : 'false';
+    if (urgentSale && urgentHours != null && urgentHours > 0) {
+      request.fields['urgentHours'] = urgentHours.toString();
+    }
+    request.fields['launchBoost'] = launchBoost ? 'true' : 'false';
+    if (launchBoost && launchBoostHours != null && launchBoostHours > 0) {
+      request.fields['launchBoostHours'] = launchBoostHours.toString();
+    }
 
     request.files.add(
       await http.MultipartFile.fromPath('image', File(imagePath).path),
@@ -382,21 +407,29 @@ class ApiService {
     String? description,
     bool isSos = false,
     int sosDiscountPercent = 0,
+    bool urgentSale = false,
+    int? urgentHours,
+    bool launchBoost = false,
+    int? launchBoostHours,
     void Function(double progress01)? onUploadProgress,
     void Function(String stage)? onUploadStage,
   }) async {
     String resolvedImageUrl = imageUrl?.trim() ?? '';
 
     if (imagePath != null && imagePath.trim().isNotEmpty) {
+      Map<String, dynamic>? uploadedVariants;
       try {
         onUploadStage?.call('Yükleme bileti alınıyor…');
-        final uploadedUrl = await _uploadImageViaPresignedUrl(
+        final uploadResult = await _uploadImageViaPresignedUrl(
           imagePath.trim(),
           onProgress: onUploadProgress,
           onStage: onUploadStage,
         );
-        if (uploadedUrl != null && uploadedUrl.trim().isNotEmpty) {
-          resolvedImageUrl = uploadedUrl.trim();
+        if (uploadResult != null) {
+          final uploadedUrl = (uploadResult['url'] ?? '').toString().trim();
+          if (uploadedUrl.isNotEmpty) resolvedImageUrl = uploadedUrl;
+          final v = uploadResult['imageVariants'];
+          if (v is Map<String, dynamic>) uploadedVariants = v;
         }
       } catch (_) {
         // Fallback akışı aşağıda devam eder.
@@ -417,9 +450,14 @@ class ApiService {
           packageSize: packageSize,
           color: color,
           imageUrl: resolvedImageUrl,
+          imageVariants: uploadedVariants,
           description: description,
           isSos: isSos,
           sosDiscountPercent: sosDiscountPercent,
+          urgentSale: urgentSale,
+          urgentHours: urgentHours,
+          launchBoost: launchBoost,
+          launchBoostHours: launchBoostHours,
         );
       }
 
@@ -441,6 +479,10 @@ class ApiService {
         description: description,
         isSos: isSos,
         sosDiscountPercent: sosDiscountPercent,
+        urgentSale: urgentSale,
+        urgentHours: urgentHours,
+        launchBoost: launchBoost,
+        launchBoostHours: launchBoostHours,
       );
     }
 
@@ -461,10 +503,43 @@ class ApiService {
       description: description,
       isSos: isSos,
       sosDiscountPercent: sosDiscountPercent,
+      urgentSale: urgentSale,
+      urgentHours: urgentHours,
+      launchBoost: launchBoost,
+      launchBoostHours: launchBoostHours,
     );
   }
 
-  static Future<String?> _uploadImageViaPresignedUrl(
+  static Future<Map<String, dynamic>> getFeeQuote({
+    required double amount,
+    String? shippingType,
+  }) async {
+    final qp = <String, String>{
+      'amount': amount.toString(),
+      if (shippingType != null && shippingType.trim().isNotEmpty)
+        'shippingType': shippingType.trim(),
+    };
+    final response = await http.get(
+      Uri.parse('$baseUrl/fees/quote').replace(queryParameters: qp),
+      headers: {'Content-Type': 'application/json'},
+    );
+    return jsonDecode(response.body);
+  }
+
+  static Future<Map<String, dynamic>> getOutfitRecommendations({
+    required int productId,
+    int limit = 6,
+  }) async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/products/$productId/outfit-recommendations').replace(
+        queryParameters: {'limit': limit.toString()},
+      ),
+      headers: {'Content-Type': 'application/json'},
+    );
+    return jsonDecode(response.body);
+  }
+
+  static Future<Map<String, dynamic>?> _uploadImageViaPresignedUrl(
     String imagePath, {
     void Function(double progress01)? onProgress,
     void Function(String stage)? onStage,
@@ -550,8 +625,13 @@ class ApiService {
         completeResponse: complete ?? const <String, dynamic>{},
         onStage: onStage,
       );
+      final rawVariants = complete?['imageVariants'];
+      final imageVariants =
+          rawVariants is Map<String, dynamic> ? rawVariants : null;
 
-      if (completedUrl.isNotEmpty) return completedUrl;
+      if (completedUrl.isNotEmpty) {
+        return {'url': completedUrl, 'imageVariants': imageVariants};
+      }
 
       final fallbackUrl = (ticket['publicUrl'] ??
               ticket['cdnUrl'] ??
@@ -561,7 +641,9 @@ class ApiService {
               ticket['assetUrl'] ??
               '')
           .toString();
-      return fallbackUrl.isEmpty ? null : fallbackUrl;
+      return fallbackUrl.isEmpty
+          ? null
+          : {'url': fallbackUrl, 'imageVariants': imageVariants};
     } finally {
       client.close();
     }
@@ -953,6 +1035,8 @@ class ApiService {
     String? shippingType,
     String? packageSize,
     String? saleStatus,
+    bool? launchBoost,
+    int? launchBoostHours,
   }) async {
     final response = await http.put(
       Uri.parse('$baseUrl/seller/products/$productId'),
@@ -964,6 +1048,9 @@ class ApiService {
         if (shippingType != null) 'shippingType': shippingType,
         if (packageSize != null) 'packageSize': packageSize,
         if (saleStatus != null) 'saleStatus': saleStatus,
+        if (launchBoost != null) 'launchBoost': launchBoost,
+        if (launchBoost != null && launchBoost == true && launchBoostHours != null && launchBoostHours > 0)
+          'launchBoostHours': launchBoostHours,
       }),
     );
     return jsonDecode(response.body);

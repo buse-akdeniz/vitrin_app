@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "node --watch src/server.js",
-    "start": "node src/server.js"
+    "start": "node src/server.js",
+    "smoke:local": "node scripts/stabilization_smoke.mjs --mode=local",
+    "smoke:staging": "node scripts/stabilization_smoke.mjs --mode=staging"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.817.0",

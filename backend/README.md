@@ -39,6 +39,31 @@ Deploy sonrası smoke test:
 API_BASE_URL=https://YOUR-DOMAIN.up.railway.app/api ./scripts/railway_smoke.sh
 ```
 
+## Sıralı geliştirme akışı (Railway öncesi)
+
+Canlıya geçmeden önce aşağıdaki sırayı izleyin:
+
+1. Lokal/staging işlerini tamamla
+2. Kritik akışları stabilize et (ilan, upload, teklif, kombin, ücret)
+3. Hata senaryolarını bitir
+4. Son aşamada Railway canlıya geç
+
+Tek komutla bu akışı doğrulamak için:
+
+```bash
+cd backend
+npm run smoke:local
+```
+
+Staging ortamında doğrulamak için:
+
+```bash
+cd backend
+API_BASE_URL=https://YOUR-STAGING-DOMAIN/api UPLOAD_API_TOKEN=... npm run smoke:staging
+```
+
+Not: staging testinde `UPLOAD_API_TOKEN` opsiyoneldir. Verilmezse script varsayılan olarak `smoketest` kullanır.
+
 ## Flutter prod build
 
 ```bash

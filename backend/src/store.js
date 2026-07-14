@@ -8,6 +8,74 @@ const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '..', 'data');
 const DB_PATH = path.join(DATA_DIR, 'db.json');
 const AUTH_SALT = process.env.AUTH_SALT || 'vitrin-dev-salt';
 
+function parsePositiveInt(value, fallback) {
+  const n = Number.parseInt(String(value ?? ''), 10);
+  if (!Number.isFinite(n) || n <= 0) return fallback;
+  return n;
+}
+
+const OFFER_DAILY_LIMIT = parsePositiveInt(process.env.OFFER_DAILY_LIMIT, 20);
+const URGENT_DEFAULT_HOURS = parsePositiveInt(process.env.URGENT_DEFAULT_HOURS, 24);
+const URGENT_MAX_HOURS = parsePositiveInt(process.env.URGENT_MAX_HOURS, 72);
+const LAUNCH_BOOST_DEFAULT_HOURS = parsePositiveInt(process.env.LAUNCH_BOOST_DEFAULT_HOURS, 72);
+const LAUNCH_BOOST_MAX_HOURS = parsePositiveInt(process.env.LAUNCH_BOOST_MAX_HOURS, 168);
+const COMMISSION_PERCENT = Number.parseFloat(process.env.COMMISSION_PERCENT || '4.9');
+const PAYMENT_PERCENT = Number.parseFloat(process.env.PAYMENT_PERCENT || '2.99');
+const PAYMENT_FIXED_TRY = Number.parseFloat(process.env.PAYMENT_FIXED_TRY || '1.5');
+
+function isUrgentSaleActive(product) {
+  const urgent = Boolean(product?.urgentSale ?? product?.urgent_sale);
+  const untilRaw = product?.urgentUntil ?? product?.urgent_until;
+  if (!urgent || !untilRaw) return false;
+  const untilMs = new Date(untilRaw).getTime();
+  return Number.isFinite(untilMs) && untilMs > Date.now();
+}
+
+function isLaunchBoostActive(product) {
+  const boosted = Boolean(product?.launchBoost ?? product?.launch_boost);
+  const untilRaw = product?.launchBoostUntil ?? product?.launch_boost_until;
+  if (!boosted || !untilRaw) return false;
+  const untilMs = new Date(untilRaw).getTime();
+  return Number.isFinite(untilMs) && untilMs > Date.now();
+}
+
+function toUrgentUntil(hours) {
+  const safeHours = Math.max(1, Math.min(URGENT_MAX_HOURS, Number(hours) || URGENT_DEFAULT_HOURS));
+  return new Date(Date.now() + safeHours * 60 * 60 * 1000).toISOString();
+}
+
+function toLaunchBoostUntil(hours) {
+  const safeHours = Math.max(1, Math.min(LAUNCH_BOOST_MAX_HOURS, Number(hours) || LAUNCH_BOOST_DEFAULT_HOURS));
+  return new Date(Date.now() + safeHours * 60 * 60 * 1000).toISOString();
+}
+
+function normalizeCategory(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function categoryFamily(category) {
+  const c = normalizeCategory(category);
+  if (!c) return 'other';
+  if (/(ceket|hırka|kazak|gömlek|bluz|tişört|tshirt|üst)/.test(c)) return 'top';
+  if (/(pantolon|etek|şort|sort|alt|jean)/.test(c)) return 'bottom';
+  if (/(elbise|tulum)/.test(c)) return 'dress';
+  if (/(ayakkabı|ayakkabi|sneaker|bot|topuklu)/.test(c)) return 'shoe';
+  if (/(çanta|canta|aksesuar|takı|taki|kemer)/.test(c)) return 'accessory';
+  return 'other';
+}
+
+function isComplementaryCategory(base, candidate) {
+  const a = categoryFamily(base);
+  const b = categoryFamily(candidate);
+  if (a === 'other' || b === 'other') return false;
+  if (a === b && a !== 'accessory') return false;
+  if (a === 'dress') return b === 'shoe' || b === 'accessory';
+  if (a === 'top') return b === 'bottom' || b === 'shoe' || b === 'accessory';
+  if (a === 'bottom') return b === 'top' || b === 'shoe' || b === 'accessory';
+  if (a === 'shoe') return b === 'dress' || b === 'top' || b === 'bottom';
+  return true;
+}
+
 function defaultDb() {
   return {
     nextUserId: 1,
@@ -141,9 +209,13 @@ export function updateUserProfile(userId, { name, bio }) {
 
 export function listProducts({ q, sosOnly, smartMode } = {}) {
   loadDb();
-  let items = [...db.products].sort(
-    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
-  );
+  let items = [...db.products].sort((a, b) => {
+    const boostDiff = Number(isLaunchBoostActive(b)) - Number(isLaunchBoostActive(a));
+    if (boostDiff !== 0) return boostDiff;
+    const urgentDiff = Number(isUrgentSaleActive(b)) - Number(isUrgentSaleActive(a));
+    if (urgentDiff !== 0) return urgentDiff;
+    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+  });
 
   if (sosOnly) items = items.filter((p) => p.isSos);
   if (q) {
@@ -155,7 +227,13 @@ export function listProducts({ q, sosOnly, smartMode } = {}) {
   }
 
   if (smartMode === '1' && items.length > 1) {
-    items = items.slice().sort((a, b) => (b.isSos ? 1 : 0) - (a.isSos ? 1 : 0));
+    items = items.slice().sort((a, b) => {
+      const boostDiff = Number(isLaunchBoostActive(b)) - Number(isLaunchBoostActive(a));
+      if (boostDiff !== 0) return boostDiff;
+      const urgentDiff = Number(isUrgentSaleActive(b)) - Number(isUrgentSaleActive(a));
+      if (urgentDiff !== 0) return urgentDiff;
+      return (b.isSos ? 1 : 0) - (a.isSos ? 1 : 0);
+    });
   }
 
   return items;
@@ -164,6 +242,10 @@ export function listProducts({ q, sosOnly, smartMode } = {}) {
 export function createProduct(sellerId, payload) {
   loadDb();
   const imageUrl = String(payload.imageUrl || '').trim();
+  const urgentSale = Boolean(payload.urgentSale ?? payload.urgent_sale);
+  const urgentUntil = urgentSale ? toUrgentUntil(payload.urgentHours) : null;
+  const launchBoost = Boolean(payload.launchBoost ?? payload.launch_boost);
+  const launchBoostUntil = launchBoost ? toLaunchBoostUntil(payload.launchBoostHours) : null;
   const product = {
     id: db.nextProductId++,
     sellerId,
@@ -186,6 +268,14 @@ export function createProduct(sellerId, payload) {
     imageUrl,
     image_variants: payload.imageVariants || payload.image_variants || null,
     image_status: imageUrl ? 'ready' : 'none',
+    urgentSale,
+    urgent_sale: urgentSale,
+    urgentUntil,
+    urgent_until: urgentUntil,
+    launchBoost,
+    launch_boost: launchBoost,
+    launchBoostUntil,
+    launch_boost_until: launchBoostUntil,
     sale_status: 'available',
     seller_id: sellerId,
     user_id: sellerId,
@@ -241,6 +331,10 @@ export function getProductsByIds(ids) {
 
 export function formatProductForApi(product) {
   if (!product) return null;
+  const urgentSale = Boolean(product.urgentSale ?? product.urgent_sale);
+  const urgentUntil = product.urgentUntil ?? product.urgent_until ?? null;
+  const launchBoost = Boolean(product.launchBoost ?? product.launch_boost);
+  const launchBoostUntil = product.launchBoostUntil ?? product.launch_boost_until ?? null;
   return {
     ...product,
     seller_id: product.sellerId,
@@ -251,6 +345,17 @@ export function formatProductForApi(product) {
     item_condition: product.item_condition ?? product.condition ?? '',
     image_variants: product.image_variants ?? product.imageVariants ?? null,
     imageVariants: product.image_variants ?? product.imageVariants ?? null,
+    urgent_sale: urgentSale,
+    urgentSale,
+    urgent_until: urgentUntil,
+    urgentUntil,
+    is_urgent_active: urgentSale && Boolean(urgentUntil) && new Date(urgentUntil).getTime() > Date.now(),
+    launch_boost: launchBoost,
+    launchBoost,
+    launch_boost_until: launchBoostUntil,
+    launchBoostUntil,
+    is_launch_boost_active:
+      launchBoost && Boolean(launchBoostUntil) && new Date(launchBoostUntil).getTime() > Date.now(),
   };
 }
 
@@ -278,6 +383,22 @@ export function updateProduct(sellerId, productId, patch) {
   if (patch.saleStatus != null) {
     product.sale_status = String(patch.saleStatus);
   }
+  if (patch.urgentSale != null) {
+    const urgentSale = Boolean(patch.urgentSale);
+    product.urgentSale = urgentSale;
+    product.urgent_sale = urgentSale;
+    const urgentUntil = urgentSale ? toUrgentUntil(patch.urgentHours) : null;
+    product.urgentUntil = urgentUntil;
+    product.urgent_until = urgentUntil;
+  }
+  if (patch.launchBoost != null) {
+    const launchBoost = Boolean(patch.launchBoost);
+    product.launchBoost = launchBoost;
+    product.launch_boost = launchBoost;
+    const launchBoostUntil = launchBoost ? toLaunchBoostUntil(patch.launchBoostHours) : null;
+    product.launchBoostUntil = launchBoostUntil;
+    product.launch_boost_until = launchBoostUntil;
+  }
   saveDb();
   return product;
 }
@@ -288,11 +409,68 @@ function todayKey() {
 
 export function getOfferQuota(userId) {
   loadDb();
-  const dailyLimit = 20;
+  const dailyLimit = OFFER_DAILY_LIMIT;
   const key = String(userId);
   const bucket = db.offerQuota[key];
   const used = bucket?.date === todayKey() ? bucket.count : 0;
   return { used, dailyLimit, remaining: Math.max(0, dailyLimit - used) };
+}
+
+export function getCommissionQuote({ amount, shippingType }) {
+  const gross = Number(amount);
+  if (!Number.isFinite(gross) || gross <= 0) {
+    return { success: false, message: 'Geçersiz tutar' };
+  }
+  const commission = Math.max(0, (gross * COMMISSION_PERCENT) / 100);
+  const paymentFee = Math.max(0, (gross * PAYMENT_PERCENT) / 100 + PAYMENT_FIXED_TRY);
+  const payout = Math.max(0, gross - commission - paymentFee);
+  return {
+    success: true,
+    amount: Number(gross.toFixed(2)),
+    commissionPercent: COMMISSION_PERCENT,
+    paymentPercent: PAYMENT_PERCENT,
+    paymentFixedTry: PAYMENT_FIXED_TRY,
+    commission: Number(commission.toFixed(2)),
+    paymentFee: Number(paymentFee.toFixed(2)),
+    estimatedPayout: Number(payout.toFixed(2)),
+    shippingType: String(shippingType || 'seller').trim() || 'seller',
+  };
+}
+
+export function getOutfitRecommendations(productId, { limit = 6 } = {}) {
+  loadDb();
+  const target = getProductById(productId);
+  if (!target) return null;
+
+  const targetPrice = Number(target.price) || 0;
+  const targetGender = normalizeCategory(target.gender);
+  const max = Math.max(1, Math.min(20, Number(limit) || 6));
+
+  const candidates = db.products
+    .filter((p) => p.id !== target.id)
+    .filter((p) => (p.sale_status ?? 'available') === 'available')
+    .filter((p) => isComplementaryCategory(target.category, p.category))
+    .filter((p) => {
+      if (!targetGender) return true;
+      const g = normalizeCategory(p.gender);
+      return !g || g === targetGender || g === 'unisex';
+    })
+    .map((p) => {
+      const price = Number(p.price) || 0;
+      const priceDelta = Math.abs(price - targetPrice);
+      const urgentBoost = isUrgentSaleActive(p) ? 20 : 0;
+      const score = Math.max(0, 100 - priceDelta / 10) + urgentBoost;
+      return { p, score };
+    })
+    .sort((a, b) => b.score - a.score)
+    .slice(0, max)
+    .map(({ p }) => formatProductForApi(p));
+
+  return {
+    success: true,
+    productId: target.id,
+    recommendations: candidates,
+  };
 }
 
 function incrementOfferQuota(userId) {
@@ -491,12 +669,21 @@ export function respondOffer(userId, offerId, { action, counterAmount }) {
       note: 'Teklif kabul edildi',
     });
     createOrderFromOffer(offer);
-    addNotification({
-      userId: offer.buyerId,
-      title: 'Teklif kabul edildi',
-      message: `${userName(offer.sellerId)} teklifinizi kabul etti`,
-      data: { offerId: offer.id, productId: offer.productId },
-    });
+    if (isSeller) {
+      addNotification({
+        userId: offer.buyerId,
+        title: 'Teklif kabul edildi',
+        message: `${userName(offer.sellerId)} teklifinizi kabul etti`,
+        data: { offerId: offer.id, productId: offer.productId },
+      });
+    } else {
+      addNotification({
+        userId: offer.sellerId,
+        title: 'Karşı teklif kabul edildi',
+        message: `${userName(offer.buyerId)} karşı teklifinizi kabul etti`,
+        data: { offerId: offer.id, productId: offer.productId },
+      });
+    }
     saveDb();
     return { ok: true, message: 'Teklif kabul edildi' };
   }

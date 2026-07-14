@@ -46,6 +46,8 @@ class _SellerPanelScreenState extends State<SellerPanelScreen> {
     final price = TextEditingController(text: (product['price'] ?? '').toString());
     final description = TextEditingController(text: (product['description'] ?? '').toString());
     String saleStatus = (product['sale_status'] ?? 'available').toString();
+    bool launchBoost = product['is_launch_boost_active'] == true;
+    int launchBoostHours = 72;
 
     await showDialog(
       context: context,
@@ -68,6 +70,25 @@ class _SellerPanelScreenState extends State<SellerPanelScreen> {
                   onChanged: (v) => saleStatus = v ?? 'available',
                   decoration: const InputDecoration(labelText: 'Satış Durumu'),
                 ),
+                const SizedBox(height: 8),
+                SwitchListTile(
+                  value: launchBoost,
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Launch Boost'),
+                  subtitle: const Text('İlanı geçici olarak feed başına taşı'),
+                  onChanged: (v) => setState(() => launchBoost = v),
+                ),
+                if (launchBoost)
+                  DropdownButtonFormField<int>(
+                    initialValue: launchBoostHours,
+                    items: const [
+                      DropdownMenuItem(value: 24, child: Text('24 Saat')),
+                      DropdownMenuItem(value: 72, child: Text('72 Saat')),
+                      DropdownMenuItem(value: 168, child: Text('7 Gün')),
+                    ],
+                    onChanged: (v) => launchBoostHours = v ?? 72,
+                    decoration: const InputDecoration(labelText: 'Boost Süresi'),
+                  ),
               ],
             ),
           ),
@@ -81,6 +102,8 @@ class _SellerPanelScreenState extends State<SellerPanelScreen> {
                   description: description.text.trim(),
                   price: double.tryParse(price.text.trim()),
                   saleStatus: saleStatus,
+                  launchBoost: launchBoost,
+                  launchBoostHours: launchBoost ? launchBoostHours : null,
                 );
                 if (!mounted) return;
                 Navigator.pop(this.context);
@@ -176,12 +199,13 @@ class _SellerPanelScreenState extends State<SellerPanelScreen> {
                 const SizedBox(height: 8),
                 ..._products.map((p) {
                   final item = p as Map<String, dynamic>;
+                  final isBoost = item['is_launch_boost_active'] == true;
                   return Container(
                     margin: const EdgeInsets.only(bottom: 8),
                     decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFFE8E8E8))),
                     child: ListTile(
                       title: Text((item['title'] ?? '').toString()),
-                      subtitle: Text('₺${item['price']} • ${item['sale_status']}'),
+                      subtitle: Text('₺${item['price']} • ${item['sale_status']}${isBoost ? ' • Launch Boost' : ''}'),
                       trailing: IconButton(icon: const Icon(Icons.edit_outlined), onPressed: () => _editProduct(item)),
                     ),
                   );
